@@ -206,6 +206,7 @@ class Client:
             self.send_to_firebase()
 
     async def query_printer_objects(self):
+        self.logger.info("Querying printer Objects")
         params = {
             "objects": {
                 "print_stats": None,
@@ -217,6 +218,7 @@ class Client:
         await self.parse_objects_response(response, err)
 
     async def subscribe_to_notifications(self):
+        self.logger.info("Subscribing to printer Objects")
         params = {
             "objects": {
                 "print_stats": None,
