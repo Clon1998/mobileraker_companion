@@ -51,10 +51,13 @@ class Client:
                 if self.rec_task:
                     self.rec_task.cancel()
                 self.rec_task = self.loop.create_task(self.start_receiving())
-                await self.send_method("server.info", self.parse_server_info)
+                await self.init_printer_objects()
                 await self.websocket.wait_closed()
             except websockets.ConnectionClosed:
                 continue
+
+    async def init_printer_objects(self):
+        await self.send_method("server.info", self.parse_server_info)
 
     async def start_receiving(self):
         async for message in self.websocket:
@@ -84,7 +87,14 @@ class Client:
                 if mmethod == "notify_status_update":
                     # "params": [{<status object>}, <eventtime>]
                     await self.parse_notify_status_update(response["params"][0])
+                elif mmethod == "notify_klippy_ready":
+                    self.logger.info("Klippy has reported a ready state")
+                    await self.init_printer_objects()
                 elif mmethod == "notify_klippy_shutdown":
+                    self.logger.info("Klippy has reported a shutdown state")
+                    self.klippy_ready = False
+                elif mmethod == "notify_klippy_disconnected":
+                    self.logger.info("Moonraker's connection to Klippy has terminated")
                     self.klippy_ready = False
                 else:
                     self.logger.debug("Method %s not implemented/supported" % mmethod)
@@ -118,7 +128,7 @@ class Client:
             response_future = self.req_blocking.pop(mid)
             response_future.set_result((message, err))
 
-    async def parse_subscription_response(self, message=None, err=None):
+    async def parse_objects_response(self, message=None, err=None):
         await self.parse_notify_status_update(message["result"]["status"])
 
     async def parse_notify_status_update(self, status_objects):
@@ -130,19 +140,16 @@ class Client:
                 await self.parse_display_status_update(object_data)
             elif key == "virtual_sdcard":
                 await self.parse_virtual_sdcard_update(object_data)
-        if not self.init_done:
-            self.init_done = True
-            self.send_to_firebase()
 
     async def parse_server_info(self, message=None, err=None):
         message = message["result"]
         klippy_state = message.get("klippy_state")
         if klippy_state == "ready":
-            await self.subscribe_to_notifications()
+            await self.query_printer_objects()
             self.klippy_ready = True
         else:
             self.klippy_ready = False
-            await self.send_method("server.info", self.parse_server_info)
+            await self.init_printer_objects()
 
     async def parse_print_stats_update(self, print_stats):
         old = deepcopy(self.print_stats)
@@ -185,7 +192,7 @@ class Client:
             self.virtual_sdcard = incoming
             self.send_to_firebase()
 
-    async def subscribe_to_notifications(self):
+    async def query_printer_objects(self):
         params = {
             "objects": {
                 "print_stats": None,
@@ -194,7 +201,23 @@ class Client:
             }
         }
         self.init_done = False
-        await self.send_method("printer.objects.subscribe", self.parse_subscription_response, params)
+        response, err = await self.send_and_receive_method("printer.objects.query", params)
+        await self.parse_objects_response(response, err)
+
+        if not self.init_done:
+            self.init_done = True
+            self.send_to_firebase()
+        await self.subscribe_to_notifications()
+
+    async def subscribe_to_notifications(self):
+        params = {
+            "objects": {
+                "print_stats": None,
+                # "display_status": None,
+                "virtual_sdcard": None
+            }
+        }
+        await self.send_method("printer.objects.subscribe", self.parse_objects_response, params)
 
     async def on_print_state_transition(self, old, new):
         self.logger.info("print_state transition %s -> %s" % (old, new))
@@ -232,7 +255,7 @@ class Client:
         return out
 
     def send_to_firebase(self):
-        if not self.init_done:
+        if not self.init_done or not self.klippy_ready:
             return
         self.loop.create_task(self.task_firebase())
 
@@ -245,7 +268,7 @@ class Client:
             return
         self.logger.info("Sending to firebase: %s" % json.dumps(msg))
         try:
-            res = requests.post(self.mobileraker_fcm+'/companion/update', json=msg)
+            res = requests.post(self.mobileraker_fcm + '/companion/update', json=msg)
             await self.handle_fcm_send_response(res)
         except requests.exceptions.ConnectionError as err:
             self.logger.error("Could not reach the mobileraker server!")
@@ -317,7 +340,8 @@ def main() -> None:
 
     event_loop = asyncio.get_event_loop()
     try:
-        client = Client(moonraker_uri='ws://127.0.0.1/websocket', fcm_uri='https://mobileraker-fcm-server.herokuapp.com', loop=event_loop)
+        client = Client(moonraker_uri='ws://127.0.0.1/websocket',
+                        fcm_uri='https://mobileraker-fcm-server.herokuapp.com', loop=event_loop)
         event_loop.create_task(client.connect())
         event_loop.run_forever()
     finally:
