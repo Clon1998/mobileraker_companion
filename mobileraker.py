@@ -57,7 +57,20 @@ class Client:
                 continue
 
     async def init_printer_objects(self):
-        await self.send_method("server.info", self.parse_server_info)
+        self.init_done = False
+        self.logger.info("Fetching printer Objects")
+        response, err = await self.send_and_receive_method("server.info")
+        await self.parse_server_info(response, err)
+
+        if self.klippy_ready:
+            await self.query_printer_objects()
+
+            if not self.init_done:
+                self.init_done = True
+                self.send_to_firebase()
+            await self.subscribe_to_notifications()
+        else:
+            await self.init_printer_objects()
 
     async def start_receiving(self):
         async for message in self.websocket:
@@ -129,6 +142,7 @@ class Client:
             response_future.set_result((message, err))
 
     async def parse_objects_response(self, message=None, err=None):
+        self.logger.info("Received objects response %s" % message)
         await self.parse_notify_status_update(message["result"]["status"])
 
     async def parse_notify_status_update(self, status_objects):
@@ -142,14 +156,13 @@ class Client:
                 await self.parse_virtual_sdcard_update(object_data)
 
     async def parse_server_info(self, message=None, err=None):
+        self.logger.info("Received Server Info")
         message = message["result"]
         klippy_state = message.get("klippy_state")
         if klippy_state == "ready":
-            await self.query_printer_objects()
             self.klippy_ready = True
         else:
             self.klippy_ready = False
-            await self.init_printer_objects()
 
     async def parse_print_stats_update(self, print_stats):
         old = deepcopy(self.print_stats)
@@ -200,14 +213,8 @@ class Client:
                 "virtual_sdcard": None
             }
         }
-        self.init_done = False
         response, err = await self.send_and_receive_method("printer.objects.query", params)
         await self.parse_objects_response(response, err)
-
-        if not self.init_done:
-            self.init_done = True
-            self.send_to_firebase()
-        await self.subscribe_to_notifications()
 
     async def subscribe_to_notifications(self):
         params = {
