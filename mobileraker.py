@@ -70,7 +70,7 @@ class Client:
                 self.send_to_firebase()
             await self.subscribe_to_notifications()
         else:
-            await self.init_printer_objects()
+            self.loop.create_task(self.init_printer_objects())
 
     async def start_receiving(self):
         async for message in self.websocket:
@@ -102,7 +102,7 @@ class Client:
                     await self.parse_notify_status_update(response["params"][0])
                 elif mmethod == "notify_klippy_ready":
                     self.logger.info("Klippy has reported a ready state")
-                    await self.init_printer_objects()
+                    self.loop.create_task(self.init_printer_objects())
                 elif mmethod == "notify_klippy_shutdown":
                     self.logger.info("Klippy has reported a shutdown state")
                     self.klippy_ready = False
@@ -142,7 +142,7 @@ class Client:
             response_future.set_result((message, err))
 
     async def parse_objects_response(self, message=None, err=None):
-        self.logger.info("Received objects response %s" % message)
+        self.logger.debug("Received objects response %s" % message)
         await self.parse_notify_status_update(message["result"]["status"])
 
     async def parse_notify_status_update(self, status_objects):
