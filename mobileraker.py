@@ -245,7 +245,7 @@ class Client:
             return
         self.logger.info("Sending to firebase: %s" % json.dumps(msg))
         try:
-            res = requests.post(self.mobileraker_fcm+'companion/config', json=msg)
+            res = requests.post(self.mobileraker_fcm+'/companion/update', json=msg)
             await self.handle_fcm_send_response(res)
         except requests.exceptions.ConnectionError as err:
             self.logger.error("Could not reach the mobileraker server!")
@@ -317,7 +317,7 @@ def main() -> None:
 
     event_loop = asyncio.get_event_loop()
     try:
-        client = Client(moonraker_uri='ws://127.0.0.1/websocket', fcm_uri='https://mobileraker-fcm-server.herokuapp.com/', loop=event_loop)
+        client = Client(moonraker_uri='ws://127.0.0.1/websocket', fcm_uri='https://mobileraker-fcm-server.herokuapp.com', loop=event_loop)
         event_loop.create_task(client.connect())
         event_loop.run_forever()
     finally:
