@@ -49,7 +49,7 @@ class CompanionRequestDto:
 
         return self.print_state == o.print_state and \
                self.tokens == o.tokens and self.printer_identifier == o.printer_identifier and \
-               self.filename == o.filename and self.progress == o.progress and\
+               self.filename == o.filename and self.progress == o.progress and \
                self.printing_duration == o.printing_duration
 
 
@@ -137,8 +137,7 @@ class Client:
                     self.logger.info("Klippy has reported a ready state")
                     self.loop.create_task(self.init_printer_objects())
                 elif mmethod == "notify_klippy_shutdown":
-                    self.logger.info("Klippy has reported a shutdown state")
-                    self.klippy_ready = False
+                    self.on_klippy_shutdown()
                 elif mmethod == "notify_klippy_disconnected":
                     self.logger.info("Moonraker's connection to Klippy has terminated")
                     self.klippy_ready = False
@@ -279,10 +278,15 @@ class Client:
 
         return req
 
+    def on_klippy_shutdown(self):
+        self.logger.info("Klippy has reported a shutdown state")
+        self.klippy_ready = False
+        self.send_to_firebase(True)
+
     async def collect_for_notification(self) -> CompanionRequestDto:
         req = CompanionRequestDto()
 
-        req.print_state = self.print_stats.state
+        req.print_state = self.print_stats.state if self.klippy_ready else "error"
         req.tokens = await self.fetch_fcm_tokens()
         req.printer_identifier = await self.fetch_printer_id()
 
@@ -294,8 +298,8 @@ class Client:
             req.printing_duration = self.print_stats.print_duration
         return req
 
-    def send_to_firebase(self):
-        if not self.init_done or not self.klippy_ready:
+    def send_to_firebase(self, force=False):
+        if not force and (not self.init_done or not self.klippy_ready):
             return
         self.loop.create_task(self.task_firebase())
 
