@@ -19,29 +19,53 @@ from websockets.uri import WebSocketURI
 from printer_objects import PrintStats, DisplayStatus, VirtualSDCard
 
 
+class CompanionRequestDto:
+    def __init__(self):
+        self.print_state = None
+        self.tokens = None
+        self.printer_identifier = None
+        self.filename = None
+        self.progress = None
+        self.printing_duration = None
+
+    def toJSON(self) -> str:
+        out = {
+            "printState": self.print_state,
+            "tokens": self.tokens,
+            "printerIdentifier": self.printer_identifier
+        }
+
+        if self.filename:
+            out["filename"] = self.filename
+
+        if self.print_state == "printing":
+            out["progress"] = self.progress
+            out["printingDuration"] = self.printing_duration
+        return json.dumps(out)
+
+
 class Client:
     def __init__(
             self,
             moonraker_uri: WebSocketURI,
             fcm_uri: str,
             loop: AbstractEventLoop,
-            apikey: str = None,
     ) -> None:
         super().__init__()
         self.websocket = None
         self.moonraker_server = moonraker_uri
         self.mobileraker_fcm = fcm_uri
-        self.apikey = apikey
         self.req_cb = {}
         self.req_blocking = {}
         self.loop = loop
+        self.rec_task = None
         self.init_done = False
         self.klippy_ready = False
-        self.print_stats = PrintStats()
-        self.display_status = DisplayStatus()
-        self.virtual_sdcard = VirtualSDCard()
+        self.print_stats: PrintStats or None = None
+        self.display_status: DisplayStatus or None = None
+        self.virtual_sdcard: VirtualSDCard or None = None
+        self.last_request: CompanionRequestDto or None = None
         self.config = CompanionConfig()  # TODO: Fetch this from a remote server for easier configuration :)
-        self.rec_task = None
         self.logger = logging.getLogger('Client')
 
     async def connect(self) -> None:
@@ -165,7 +189,6 @@ class Client:
             self.klippy_ready = False
 
     async def parse_print_stats_update(self, print_stats):
-        old = deepcopy(self.print_stats)
         if "filename" in print_stats:
             self.print_stats.filename = print_stats["filename"]
         if "total_duration" in print_stats:
@@ -177,32 +200,28 @@ class Client:
         if "message" in print_stats:
             self.print_stats.message = print_stats["message"]
 
-        if old.state != self.print_stats.state:
-            await self.on_print_state_transition(old.state, self.print_stats.state)
+        if self.last_request is None or self.last_request.state != self.print_stats.state:
+            await self.on_print_state_transition(self.print_stats.state)
 
     async def parse_display_status_update(self, display_status):
-        incoming = deepcopy(self.display_status)
-
         # Tbh. I dont care about the message
         if "message" in display_status:
-            incoming.message = display_status["message"]
+            self.display_status.message = display_status["message"]
         if "progress" in display_status:
-            incoming.progress = display_status["progress"]
+            self.display_status.progress = display_status["progress"]
 
-        if self.display_status.progress and incoming.progress - self.display_status.progress >= self.config.increments:
-            self.display_status = incoming
-            self.send_to_firebase()
+        # if self.display_status.progress and incoming.progress - self.display_status.progress >= self.config.increments:
+        #     self.display_status = incoming
+        #     self.send_to_firebase()
 
     async def parse_virtual_sdcard_update(self, virtual_sdcard):
-        incoming = deepcopy(self.virtual_sdcard)
 
         if "file_position" in virtual_sdcard:
-            incoming.file_position = virtual_sdcard["file_position"]
+            self.virtual_sdcard.file_position = virtual_sdcard["file_position"]
         if "progress" in virtual_sdcard:
-            incoming.progress = virtual_sdcard["progress"]
+            self.virtual_sdcard.progress = virtual_sdcard["progress"]
 
-        if incoming.progress - self.virtual_sdcard.progress >= self.config.increments:
-            self.virtual_sdcard = incoming
+        if self.last_request is None or self.virtual_sdcard.progress - self.last_request.progress >= self.config.increments:
             self.send_to_firebase()
 
     async def query_printer_objects(self):
@@ -228,8 +247,8 @@ class Client:
         }
         await self.send_method("printer.objects.subscribe", self.parse_objects_response, params)
 
-    async def on_print_state_transition(self, old, new):
-        self.logger.info("print_state transition %s -> %s" % (old, new))
+    async def on_print_state_transition(self, new):
+        self.logger.info("print_state transition %s -> %s" % (self.last_request.state, new))
         self.send_to_firebase()
 
     def construct_json_rpc(self, method: str, params: dict = None) -> dict:
@@ -247,21 +266,20 @@ class Client:
 
         return req
 
-    async def collect_for_notification(self) -> dict:
-        print_state = self.print_stats.state
-        out = {
-            "printState": print_state,
-            "tokens": await self.fetch_fcm_tokens(),
-            "printerIdentifier": await self.fetch_printer_id()
-        }
+    async def collect_for_notification(self) -> CompanionRequestDto:
+        req = CompanionRequestDto()
 
-        if self.print_stats and self.print_stats.filename:
-            out["filename"] = self.print_stats.filename
+        req.print_state = self.print_stats.state
+        req.tokens = await self.fetch_fcm_tokens()
+        req.printer_identifier = await self.fetch_printer_id()
 
-        if print_state == "printing":
-            out["progress"] = self.virtual_sdcard.progress
-            out["printingDuration"] = self.print_stats.print_duration
-        return out
+        if self.print_stats.filename:
+            req.filename = self.print_stats.filename
+
+        if self.print_stats == "printing":
+            req.progress = self.virtual_sdcard.progress
+            req.printing_duration = self.print_stats.print_duration
+        return req
 
     def send_to_firebase(self):
         if not self.init_done or not self.klippy_ready:
@@ -271,13 +289,13 @@ class Client:
     async def task_firebase(self):
         # await self.send_method("server.database.get_item", self.fcm_token_received,
         #                        {"namespace": "mobileraker", "key": "fcmTokens"})
-        msg = await self.collect_for_notification()
-        if msg["printerIdentifier"] is None:
+        request_dto = await self.collect_for_notification()
+        if request_dto.printer_identifier is None:
             self.logger.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
             return
-        self.logger.info("Sending to firebase: %s" % json.dumps(msg))
+        self.logger.info("Sending to firebase: %s" % request_dto.toJSON())
         try:
-            res = requests.post(self.mobileraker_fcm + '/companion/update', json=msg)
+            res = requests.post(self.mobileraker_fcm + '/companion/update', data=request_dto.toJSON())
             await self.handle_fcm_send_response(res)
         except requests.exceptions.ConnectionError as err:
             self.logger.error("Could not reach the mobileraker server!")
