@@ -28,7 +28,7 @@ class CompanionRequestDto:
         self.progress = None
         self.printing_duration = None
 
-    def toJSON(self) -> str:
+    def toJSON(self) -> dict:
         out = {
             "printState": self.print_state,
             "tokens": self.tokens,
@@ -41,7 +41,7 @@ class CompanionRequestDto:
         if self.print_state == "printing":
             out["progress"] = self.progress
             out["printingDuration"] = self.printing_duration
-        return json.dumps(out)
+        return out
 
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, CompanionRequestDto):
@@ -311,7 +311,7 @@ class Client:
             return
         self.logger.info("Sending to firebase: %s" % request_dto.toJSON())
         try:
-            res = requests.post(self.mobileraker_fcm + '/companion/update', data=request_dto.toJSON())
+            res = requests.post(self.mobileraker_fcm + '/companion/update', json=request_dto.toJSON())
             await self.handle_fcm_send_response(res)
         except requests.exceptions.ConnectionError as err:
             self.logger.error("Could not reach the mobileraker server!")
