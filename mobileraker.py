@@ -248,7 +248,8 @@ class Client:
         await self.send_method("printer.objects.subscribe", self.parse_objects_response, params)
 
     async def on_print_state_transition(self, new):
-        self.logger.info("print_state transition %s -> %s" % (self.last_request.state, new))
+        self.logger.info(
+            "print_state transition %s -> %s" % ("NONE" if self.last_request is None else self.last_request.print_state, new))
         self.send_to_firebase()
 
     def construct_json_rpc(self, method: str, params: dict = None) -> dict:
