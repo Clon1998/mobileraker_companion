@@ -61,9 +61,9 @@ class Client:
         self.rec_task = None
         self.init_done = False
         self.klippy_ready = False
-        self.print_stats: PrintStats or None = None
-        self.display_status: DisplayStatus or None = None
-        self.virtual_sdcard: VirtualSDCard or None = None
+        self.print_stats: PrintStats = PrintStats()
+        self.display_status: DisplayStatus = DisplayStatus()
+        self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
         self.last_request: CompanionRequestDto or None = None
         self.config = CompanionConfig()  # TODO: Fetch this from a remote server for easier configuration :)
         self.logger = logging.getLogger('Client')
@@ -290,6 +290,7 @@ class Client:
         # await self.send_method("server.database.get_item", self.fcm_token_received,
         #                        {"namespace": "mobileraker", "key": "fcmTokens"})
         request_dto = await self.collect_for_notification()
+        self.last_request = request_dto
         if request_dto.printer_identifier is None:
             self.logger.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
             return
