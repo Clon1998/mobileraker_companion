@@ -43,6 +43,15 @@ class CompanionRequestDto:
             out["printingDuration"] = self.printing_duration
         return json.dumps(out)
 
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, CompanionRequestDto):
+            return False
+
+        return self.print_state == o.print_state and \
+               self.tokens == o.tokens and self.printer_identifier == o.printer_identifier and \
+               self.filename == o.filename and self.progress == o.progress and\
+               self.printing_duration == o.printing_duration
+
 
 class Client:
     def __init__(
@@ -200,7 +209,8 @@ class Client:
         if "message" in print_stats:
             self.print_stats.message = print_stats["message"]
 
-        if self.last_request is None or self.last_request.state != self.print_stats.state:
+        if self.last_request is None or self.last_request.print_state != self.print_stats.state:
+            self.logger.debug("Send to FB - Print Stats")
             await self.on_print_state_transition(self.print_stats.state)
 
     async def parse_display_status_update(self, display_status):
@@ -221,7 +231,8 @@ class Client:
         if "progress" in virtual_sdcard:
             self.virtual_sdcard.progress = virtual_sdcard["progress"]
 
-        if self.last_request is None or self.virtual_sdcard.progress - self.last_request.progress >= self.config.increments:
+        if self.last_request is None or self.last_request.progress is None or self.virtual_sdcard.progress - self.last_request.progress >= self.config.increments:
+            self.logger.debug("Send to FB - Virtual SD")
             self.send_to_firebase()
 
     async def query_printer_objects(self):
@@ -249,7 +260,8 @@ class Client:
 
     async def on_print_state_transition(self, new):
         self.logger.info(
-            "print_state transition %s -> %s" % ("NONE" if self.last_request is None else self.last_request.print_state, new))
+            "print_state transition %s -> %s" % (
+                "NONE" if self.last_request is None else self.last_request.print_state, new))
         self.send_to_firebase()
 
     def construct_json_rpc(self, method: str, params: dict = None) -> dict:
@@ -277,7 +289,7 @@ class Client:
         if self.print_stats.filename:
             req.filename = self.print_stats.filename
 
-        if self.print_stats == "printing":
+        if self.print_stats.state == "printing":
             req.progress = self.virtual_sdcard.progress
             req.printing_duration = self.print_stats.print_duration
         return req
@@ -291,6 +303,8 @@ class Client:
         # await self.send_method("server.database.get_item", self.fcm_token_received,
         #                        {"namespace": "mobileraker", "key": "fcmTokens"})
         request_dto = await self.collect_for_notification()
+        if self.last_request == request_dto:
+            return
         self.last_request = request_dto
         if request_dto.printer_identifier is None:
             self.logger.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
