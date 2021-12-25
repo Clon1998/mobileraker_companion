@@ -27,3 +27,5 @@ env: ~/mobileraker-env/bin/python
 requirements: scripts/mobileraker-requirements.txt
 install_script: scripts/install-mobileraker-companion.sh
 ```
+## System Diagram
+![Sys Diag](assets/Mobileraker-System.png)
