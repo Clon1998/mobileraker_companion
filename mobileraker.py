@@ -388,7 +388,7 @@ def main() -> None:
     event_loop = asyncio.get_event_loop()
     try:
         client = Client(moonraker_uri='ws://127.0.0.1/websocket',
-                        fcm_uri='https://mobileraker-fcm-server.herokuapp.com', loop=event_loop)
+                        fcm_uri='https://mobileraker.eliteschw31n.de/', loop=event_loop)
         event_loop.create_task(client.connect())
         event_loop.run_forever()
     finally:
