@@ -313,7 +313,7 @@ class Client:
         if request_dto.printer_identifier is None:
             self.logger.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
             return
-        self.logger.info("Sending to firebase: %s" % request_dto.toJSON())
+        self.logger.info("Sending to firebase fcm (%s): %s" % (self.mobileraker_fcm, request_dto.toJSON()))
         try:
             res = requests.post(self.mobileraker_fcm + '/companion/update', json=request_dto.toJSON())
             await self.handle_fcm_send_response(res)
@@ -388,7 +388,7 @@ def main() -> None:
     event_loop = asyncio.get_event_loop()
     try:
         client = Client(moonraker_uri='ws://127.0.0.1/websocket',
-                        fcm_uri='https://mobileraker.eliteschw31n.de/', loop=event_loop)
+                        fcm_uri='https://mobileraker.eliteschw31n.de', loop=event_loop)
         event_loop.create_task(client.connect())
         event_loop.run_forever()
     finally:
