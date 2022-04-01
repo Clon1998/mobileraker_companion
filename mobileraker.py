@@ -313,6 +313,8 @@ class Client:
         if request_dto.printer_identifier is None:
             self.logger.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
             return
+        if not request_dto.tokens:
+            self.logger.warning("Could not send to mobileraker-fcm, no tokens available!")
         self.logger.info("Sending to firebase fcm (%s): %s" % (self.mobileraker_fcm, request_dto.toJSON()))
         try:
             res = requests.post(self.mobileraker_fcm + '/companion/update', json=request_dto.toJSON())
