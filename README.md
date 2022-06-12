@@ -18,11 +18,12 @@ cd mobileraker_companion
 ## Moonraker - Update manager
 In order to get moonrakers update manager working with the companion add the following section to your `moonraker.conf`. 
 ```
-[update_manager client mobileraker-companion]
+[update_manager mobileraker]
 type: git_repo
 path: ~/mobileraker_companion
 origin: https://github.com/Clon1998/mobileraker_companion.git
 primary_branch:main
+managed_services: mobileraker
 env: ~/mobileraker-env/bin/python
 requirements: scripts/mobileraker-requirements.txt
 install_script: scripts/install-mobileraker-companion.sh
