@@ -80,6 +80,7 @@ class Client:
     async def connect(self) -> None:
         async for websocket in websockets.connect(self.moonraker_server):
             try:
+                self.logger.info("WebSocket connected, ")
                 self.websocket = websocket
                 if self.rec_task:
                     self.rec_task.cancel()
@@ -89,9 +90,9 @@ class Client:
             except websockets.ConnectionClosed:
                 continue
 
-    async def init_printer_objects(self):
+    async def init_printer_objects(self, no_try=0):
         self.init_done = False
-        self.logger.info("Fetching printer Objects")
+        self.logger.info("Fetching printer Objects Try#%i", no_try)
         response, err = await self.send_and_receive_method("server.info")
         await self.parse_server_info(response, err)
 
@@ -103,7 +104,10 @@ class Client:
                 self.send_to_firebase()
             await self.subscribe_to_notifications()
         else:
-            self.loop.create_task(self.init_printer_objects())
+            wait_for = min(pow(2, no_try + 1), 30 * 60)
+            self.logger.warning("Klippy was not ready. Trying again in %i seconds..." % wait_for)
+            await asyncio.sleep(wait_for)
+            self.loop.create_task(self.init_printer_objects(no_try=no_try + 1))
 
     async def start_receiving(self):
         async for message in self.websocket:
@@ -313,6 +317,8 @@ class Client:
         if request_dto.printer_identifier is None:
             self.logger.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
             return
+        if not request_dto.tokens:
+            self.logger.warning("Could not send to mobileraker-fcm, no tokens available!")
         self.logger.info("Sending to firebase fcm (%s): %s" % (self.mobileraker_fcm, request_dto.toJSON()))
         try:
             res = requests.post(self.mobileraker_fcm + '/companion/update', json=request_dto.toJSON())
