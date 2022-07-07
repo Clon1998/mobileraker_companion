@@ -54,7 +54,8 @@ moonraker_api_key: False
 # Moonraker API key if force_logins is active!
 ```
 
-
+> **_NOTE:_**  Please restart the system service to ensure the new config values are used!  
+> You can do that trough the `sudo systemctl restart mobileraker.service` terminal command.
 
 
 ## Moonraker - Update manager
@@ -76,7 +77,7 @@ install_script: scripts/install-mobileraker-companion.sh
 
 ## Changelog
 
-### [v0.2.0] - 2022-07-07
+### [v0.2.1] - 2022-07-07
 
 - Added support for multiple printers using a single companion instance
 - Added support for trusted clients using the API key of moonraker
