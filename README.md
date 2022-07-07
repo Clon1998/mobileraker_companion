@@ -17,6 +17,8 @@ cd mobileraker_companion
 ```
 
 ## Companion - Config
+A config is only required if you want to connect to multiple printers or enfroce_logins!
+
 ```properties
 [printer <NAME OF YOUR PRINTER: optional>]
 moonraker_uri: ws://127.0.0.1:7125/websocket
