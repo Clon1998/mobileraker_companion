@@ -7,6 +7,7 @@ import os
 import pathlib
 import random
 from asyncio import AbstractEventLoop
+from logging.handlers import RotatingFileHandler
 
 import coloredlogs
 import requests
@@ -82,7 +83,7 @@ class Client:
     async def connect(self) -> None:
         self.info("Trying to connect to: %s api key %s" % (self.moonraker_server,
                                                            '<NO API KEY>' if self.moonraker_api_key else self.moonraker_api_key[
-                                                                                                                    :6] + '##########################'))
+                                                                                                         :6] + '##########################'))
         async for websocket in websockets.connect(self.moonraker_server,
                                                   extra_headers=None if self.moonraker_api_key == 'False' else [
                                                       ('X-Api-Key', self.moonraker_api_key)]):
@@ -453,7 +454,7 @@ def main() -> None:
     elif cmd_line_args.logfile:
         log_file = os.path.normpath(
             os.path.expanduser(cmd_line_args.logfile))
-        fh = logging.FileHandler(log_file)
+        fh = RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=5)
         formatter = logging.Formatter(
             '%(asctime)s [%(filename)s:%(funcName)s()] - %(message)s')
         fh.setFormatter(formatter)
