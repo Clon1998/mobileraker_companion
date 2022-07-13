@@ -57,7 +57,7 @@ class Client:
             self,
             printer_name: str,
             moonraker_uri: str,
-            moonraker_api: str,
+            moonraker_api: str or None,
             fcm_uri: str,
             loop: AbstractEventLoop,
     ) -> None:
@@ -82,10 +82,10 @@ class Client:
 
     async def connect(self) -> None:
         self.info("Trying to connect to: %s api key %s" % (self.moonraker_server,
-                                                           '<NO API KEY>' if self.moonraker_api_key else self.moonraker_api_key[
+                                                           '<NO API KEY>' if self.moonraker_api_key is None else self.moonraker_api_key[
                                                                                                          :6] + '##########################'))
         async for websocket in websockets.connect(self.moonraker_server,
-                                                  extra_headers=None if self.moonraker_api_key == 'False' else [
+                                                  extra_headers=None if self.moonraker_api_key is None else [
                                                       ('X-Api-Key', self.moonraker_api_key)]):
             try:
                 self.info("WebSocket connected")
@@ -400,15 +400,16 @@ class CompanionLocalConfig:
 
         # Taken from Klipper Screen: https://github.com/jordanruthe/KlipperScreen/blob/37c10fc8b373944ea138574a44bbfa0a5dcf0a98/ks_includes/config.py#L68-L85
         for printer in printer_sections:
+            api_key = self.config.get(printer, "moonraker_api_key", fallback=None)
             self.printers[printer[8:]] = {
                 "moonraker_uri": self.config.get(printer, "moonraker_uri", fallback="ws://127.0.0.1:7125/websocket"),
-                "moonraker_api_key": self.config.get(printer, "moonraker_api_key", fallback='False')
+                "moonraker_api_key": None if api_key == 'False' or not api_key else api_key
             }
 
         if len(self.printers) <= 0:
             self.printers['_Default'] = {
                 "moonraker_uri": "ws://127.0.0.1:7125/websocket",
-                "moonraker_api_key": 'False'
+                "moonraker_api_key": None
             }
         logging.info("Read %i printer config sections" % len(self.printers))
 
