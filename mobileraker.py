@@ -446,9 +446,6 @@ def main() -> None:
 
     cmd_line_args = parser.parse_args()
 
-    configfile = os.path.normpath(os.path.expanduser(cmd_line_args.configfile))
-
-    local_config = CompanionLocalConfig(configfile)
 
     if cmd_line_args.nologfile:
         log_file = ""
@@ -461,6 +458,10 @@ def main() -> None:
         fh.setFormatter(formatter)
         root_logger = logging.getLogger()
         root_logger.addHandler(fh)
+
+    configfile = os.path.normpath(os.path.expanduser(cmd_line_args.configfile))
+
+    local_config = CompanionLocalConfig(configfile)
 
     event_loop = asyncio.get_event_loop()
     try:
