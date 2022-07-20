@@ -1,7 +1,7 @@
 #!/bin/bash
 # This script installs the Mobileraker-Companion on a Raspi
 
-PYTHONDIR="${MOBILERAKER_VENV:-${HOME}/envs/mobileraker}"
+PYTHONDIR="${MOBILERAKER_VENV:-${HOME}/mobileraker-env}"
 REBUILD_ENV="${MOBILERAKER_REBUILD_ENV:-n}"
 FORCE_DEFAULTS="${MOBILERAKER_FORCE_DEFAULTS:-n}"
 LOG_PATH="${MOBILERAKER_LOG_PATH:-/tmp/mobileraker.log}"
