@@ -321,8 +321,8 @@ def main() -> None:
                 p_config['moonraker_api_key'],
                 event_loop)
             fcmc = MobilerakerFcmClient(
-                'http://127.0.0.1:8080',
-                # 'https://mobileraker.eliteschw31n.de',
+                # 'http://127.0.0.1:8080',
+                'https://mobileraker.eliteschw31n.de',
                 event_loop)
 
             client = MobilerakerCompanion(
