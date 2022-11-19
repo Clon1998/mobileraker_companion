@@ -69,7 +69,8 @@ def translate(country_code: str, str_key: str, data: dict[str, str] = {}):
 def translate_using_snapshot(str_key: str, cfg: DeviceNotificationConfig, snap: PrinterSnapshot) -> str:
     data = {
         'printer_name': cfg.machine_name,
-        'file': snap.filename if snap.filename is not None else 'UNKNOWN'
+        'file': snap.filename if snap.filename is not None else 'UNKNOWN',
+        'eta':'' # ToDo replace with actual ETA calc...
     }
 
     if snap.print_state == 'printing':
