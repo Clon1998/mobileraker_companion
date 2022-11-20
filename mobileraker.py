@@ -75,7 +75,7 @@ class MobilerakerCompanion:
 
             if not self.init_done:
                 self.init_done = True
-                self.logger.info('Src: INIT_DONE')
+                self.logger.debug('Src: INIT_DONE')
                 self.evaluate_notification()
             await self._subscribe_to_object_notifications()
         else:
@@ -99,7 +99,7 @@ class MobilerakerCompanion:
                 await self._parse_display_status_update(object_data)
             elif key == "virtual_sdcard":
                 await self._parse_virtual_sdcard_update(object_data)
-        self.logger.info('Src: _parse_notify_status_update')
+        self.logger.debug('Src: _parse_notify_status_update')
         self.evaluate_notification()
 
     def _parse_server_info(self, message: Dict[str, Any], err=None):
@@ -145,7 +145,7 @@ class MobilerakerCompanion:
     def _on_klippy_shutdown(self):
         self.logger.info("Klippy has reported a shutdown state")
         self.klippy_ready = False
-        self.logger.info('Src: _on_klippy_shutdown')
+        self.logger.debug('Src: _on_klippy_shutdown')
         self.evaluate_notification(True)
 
     def _on_klippy_disconnected(self):
