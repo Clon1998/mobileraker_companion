@@ -90,7 +90,7 @@ class MoonrakerClient:
             self._logger.error('The websocket connection is none?')
 
     async def _process_message(self, message: typing.Data) -> None:
-        response: dict[str, Any] = json.loads(message)
+        response: Dict[str, Any] = json.loads(message)
         mid = response.get("id")
         if "error" in response and "message" in response["error"]:
             self._logger.warning(

@@ -49,7 +49,7 @@ languages: Dict[str, Dict[str, str]] = {
 
 }
 
-def translate(country_code: str, str_key: str, data: dict[str, str] = {}):
+def translate(country_code: str, str_key: str, data: Dict[str, str] = {}):
     if country_code not in languages:
         # fallback to en
         return translate('en', str_key, data)
