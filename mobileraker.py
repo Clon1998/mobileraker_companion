@@ -270,6 +270,9 @@ class MobilerakerCompanion:
                 self.logger.info(
                     f'{c.fcm_token} sending {len(dtos)} notifications to {c.machine_name}')
                 self.logger.info(f'Dto: {dto.toJSON()}')
+        # just ensure the next update is in 5% steps at least!
+        if snapshot.progress is not None:
+                snapshot.progress = round(snapshot.progress - (snapshot.progress % self.remote_config.increments),2)
         self._last_snapshot = snapshot
 
         request = FcmRequestDto(dtos)
