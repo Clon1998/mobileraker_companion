@@ -1,7 +1,7 @@
 
 from typing import Dict
 
-from dtos.mobileraker.notification_config_dto import DeviceNotificationConfig
+from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from printer_snapshot import PrinterSnapshot
 
 # List of available tokens
@@ -18,6 +18,7 @@ _mobileraker_en: Dict[str, str] = {
     'state_paused_body': 'Paused printing file: "$file"',
     'state_completed_body': 'Finished printing: "$file"',
     'state_error_body': 'Error while printing file: "$file"',
+    'state_standby_body': 'Printer is in Standby',
 
 }
 
@@ -48,7 +49,6 @@ languages: Dict[str, Dict[str, str]] = {
 
 }
 
-
 def translate(country_code: str, str_key: str, data: dict[str, str] = {}):
     if country_code not in languages:
         # fallback to en
@@ -66,7 +66,7 @@ def translate(country_code: str, str_key: str, data: dict[str, str] = {}):
     return translation
 
 
-def translate_using_snapshot(str_key: str, cfg: DeviceNotificationConfig, snap: PrinterSnapshot) -> str:
+def translate_using_snapshot(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot) -> str:
     data = {
         'printer_name': cfg.machine_name,
         'file': snap.filename if snap.filename is not None else 'UNKNOWN',
