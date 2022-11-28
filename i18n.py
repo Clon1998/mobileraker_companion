@@ -75,6 +75,6 @@ def translate_using_snapshot(str_key: str, cfg: DeviceNotificationEntry, snap: P
 
     if snap.print_state == 'printing':
         if snap.progress is not None:
-            data['progress'] = f'{snap.progress*100:.0f}%'
+            data['progress'] = f'{snap.progress}%'
 
     return translate(cfg.language, str_key, data)

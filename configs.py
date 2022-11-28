@@ -11,7 +11,7 @@ class CompanionRemoteConfig:
 
     def __init__(self) -> None:
         super().__init__()
-        self.increments: float = 0.05
+        self.increments: int = 5
         self.uri: str = "some url"
 
 

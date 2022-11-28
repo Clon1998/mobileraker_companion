@@ -1,7 +1,6 @@
 from ctypes import cast
 from typing import Any, Dict, List, Optional
 
-
 # "5f4d11e8-ad41-4126-88ff-7593b68555d9": {
 #     "created": "2022-11-25T23:03:47.656260",
 #     "lastModified": "2022-11-26T19:46:59.083649",
@@ -27,6 +26,8 @@ from typing import Any, Dict, List, Optional
 # }
 
 # These are bundeleted in moonraker DB in an array/map -> each device has its own config! (Use the uuid of the machine class of flutter as id!)
+
+
 class DeviceNotificationEntry:
     def __init__(self):
         self.created: str
@@ -86,7 +87,7 @@ class NotificationSettings:
     def __init__(self):
         self.created: str
         self.last_modified: str
-        self.progress_config: float = 0.25
+        self.progress_config: int = 25
         self.state_config: List[str] = []
 
     @staticmethod
@@ -95,7 +96,7 @@ class NotificationSettings:
 
         cfg.created = json['created']
         cfg.last_modified = json['lastModified']
-        cfg.progress_config = json['progress']
+        cfg.progress_config = min(50, round(json['progress'] * 100))
         cfg.state_config = json['states']
 
         return cfg
@@ -114,23 +115,23 @@ class NotificationSettings:
 
 class NotificationSnap:
     def __init__(self,
-                 progress: float = 0.00,
+                 progress: int = 0,
                  state: str = ''):
-        self.progress: float = progress
+        self.progress: int = progress
         self.state: str = state
 
     @staticmethod
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSnap':
         cfg = NotificationSnap()
 
-        cfg.progress = json['progress']
+        cfg.progress = round(json['progress']*100)
         cfg.state = json['state']
 
         return cfg
 
     def toJSON(self) -> Dict[str, Any]:
         return {
-            "progress": round(self.progress, 2),
+            "progress": round(self.progress/100, 2),
             "state": self.state,
         }
 

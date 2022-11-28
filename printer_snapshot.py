@@ -8,6 +8,6 @@ class PrinterSnapshot:
     ) -> None:
         super().__init__()
         self.print_state: str = print_state
-        self.progress: Optional[float] = None
+        self.progress: Optional[int] = None
         self.filename: Optional[str] = None
         self.printing_duration: Optional[int] = None
