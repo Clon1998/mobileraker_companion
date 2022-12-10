@@ -67,7 +67,6 @@ class MobilerakerCompanion:
         await self._jrpc.connect(lambda: self.loop.create_task(self._init_printer_objects()))
 
     async def _init_printer_objects(self, no_try: int = 0) -> None:
-        self.init_done = False
         self.logger.info("Fetching printer Objects Try#%i" % no_try)
         response, err = await self._jrpc.send_and_receive_method("server.info")
         self._parse_server_info(response, err)
@@ -216,40 +215,33 @@ class MobilerakerCompanion:
             if not id:
                 self.logger.info('Was unable to fetch printer_id')
                 return
+            self.logger.info(f'Fetched printer_id: {id}')
             self._printer_fcm_id = id
-
         snapshot = self._take_snapshot()
 
         # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
 
-        if self._last_snapshot is None:
-            if snapshot.progress is not None:
-                snapshot.progress = snapshot.progress - \
-                    (snapshot.progress % self.remote_config.increments)
-            self._last_snapshot = snapshot
-            #self.logger.info(f'Waaauw-- {snapshot.progress}')
-            return
-
-        if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
+        if self._last_snapshot is not None:
+            if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
                 (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
-            return
+                return
 
         dtos = []
         cfgs = await self.fetch_fcm_cfgs()
         #self.logger.info(f'Yes i am here! - {snapshot.progress}')
-        self.logger.debug(f'Got configs: {cfgs}')
+        self.logger.info(f'Got configs: {cfgs}')
         for c in cfgs:
+            self.logger.info(f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}')
             notifications = []
 
-            state_noti = self._state_notification(
-                c, self._last_snapshot, snapshot)
+            state_noti = self._state_notification(c, snapshot)
             if state_noti is not None:
                 notifications.append(state_noti)
                 self.logger.info(
                     f'StateNoti: {state_noti.title} - {state_noti.body}')
 
             progress_noti = self._progress_notification(
-                c, self._last_snapshot, snapshot)
+                c, snapshot)
             if progress_noti is not None:
                 notifications.append(progress_noti)
                 self.logger.info(
@@ -258,6 +250,7 @@ class MobilerakerCompanion:
             self.logger.debug(
                 f'Notifications for {c.fcm_token}: {notifications}')
 
+            self.logger.info(f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
             if notifications:
                 noti_snap = NotificationSnap()
                 # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
@@ -271,8 +264,6 @@ class MobilerakerCompanion:
                     notifcations=notifications
                 )
                 dtos.append(dto)
-                self.logger.info(
-                    f'{c.fcm_token} sending {len(dtos)} notifications to {c.machine_name}')
                 #self.logger.info(f'Dto: {dto.toJSON()}')
         # just ensure the next update is in 5% steps at least!
         if snapshot.progress is not None:
@@ -283,14 +274,22 @@ class MobilerakerCompanion:
         request = FcmRequestDto(dtos)
         if dtos:
             faulty_tokens = await self._fcm_client.push(request)
-        #self.logger.info('Done wiht evaluate notification Task!')
+        self.logger.info('---- Done wiht evaluate notification Task! ----')
 
-    def _state_notification(self, cfg: DeviceNotificationEntry, last_snap: Optional[PrinterSnapshot], cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
+    def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
 
         # check if we even need to issue a new notification!
-        if last_snap is None or cfg.snap.state == cur_snap.print_state or cur_snap.print_state not in cfg.settings.state_config:
+        if cfg.snap.state == cur_snap.print_state:
             return None
 
+        # check if new print state actually should issue a notification trough user configs
+        if cur_snap.print_state not in cfg.settings.state_config:
+            return None
+
+        self.logger.info(
+            f'Got a state transition: {cfg.snap.state} -> {cur_snap.print_state}')
+
+        # collect title and body to translate it
         title = translate_using_snapshot('state_title', cfg, cur_snap)
         body = None
         if cur_snap.print_state == "printing":
@@ -310,14 +309,19 @@ class MobilerakerCompanion:
         body = translate_using_snapshot(body, cfg, cur_snap)
         return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
 
-    def _progress_notification(self, cfg: DeviceNotificationEntry, last_snap: Optional[PrinterSnapshot], cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
+    def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
 
-        # check if we even need to issue a new notification!
-        # check if last snap exist, if state is printing, if curProggress !=1, and increments are fullfilled else return
-        if last_snap is None or cur_snap.print_state != "printing" or cur_snap.progress == 100 or\
-                (last_snap.print_state == "printing" and cur_snap.progress is not None and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config)):
+        # only issue new progress notifications if the printer is printing
+        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
+        if cur_snap.print_state != "printing" or cur_snap.progress == 100 or cur_snap.progress is None:
             return None
-        #self.logger.info(f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
+
+        self.logger.info(f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
+
+        # ensure the progress threshhold of the user's cfg is reached, but only if the client already received an initial state and progress notification!
+        if (cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config)):
+            return None
+
 
         title = translate_using_snapshot('print_progress_title', cfg, cur_snap)
         body = translate_using_snapshot('print_progress_body', cfg, cur_snap)
