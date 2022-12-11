@@ -116,9 +116,12 @@ class NotificationSettings:
 class NotificationSnap:
     def __init__(self,
                  progress: int = 0,
-                 state: str = ''):
+                 state: str = '',
+                 m117: str = ''
+                 ):
         self.progress: int = progress
         self.state: str = state
+        self.m117: str = m117
 
     @staticmethod
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSnap':
@@ -126,6 +129,7 @@ class NotificationSnap:
 
         cfg.progress = round(json['progress']*100)
         cfg.state = json['state']
+        cfg.m117 = json['m117'] if 'm117' in json else ''
 
         return cfg
 
@@ -133,6 +137,7 @@ class NotificationSnap:
         return {
             "progress": round(self.progress/100, 2),
             "state": self.state,
+            "m117": self.m117,
         }
 
     def __str__(self):

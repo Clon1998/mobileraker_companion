@@ -71,7 +71,7 @@ class DisplayStatus:
 
     def updateWith(self, json: Dict[str, Any]) -> 'DisplayStatus':
         n = deepcopy(self)
-        # Tbh. I dont care about the message
+        # Message is M117
         if "message" in json:
             n.message = json["message"]
         if "progress" in json:

@@ -1,11 +1,12 @@
 import argparse
 import asyncio
+import hashlib
 import logging
 import os
 from asyncio import AbstractEventLoop
 from logging.handlers import RotatingFileHandler
 from tracemalloc import Snapshot
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
 
@@ -17,7 +18,8 @@ from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
                                                       NotificationSnap)
 from dtos.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
                                   VirtualSDCard)
-from i18n import translate, translate_using_snapshot
+from i18n import (replace_placeholders, translate,
+                  translate_replace_placeholders)
 from mobileraker_fcm import MobilerakerFcmClient
 from moonraker_client import MoonrakerClient
 from printer_snapshot import PrinterSnapshot
@@ -97,7 +99,12 @@ class MobilerakerCompanion:
             if key == "print_stats":
                 await self._parse_print_stats_update(object_data)
             elif key == "display_status":
+                old = self.display_status
                 await self._parse_display_status_update(object_data)
+                # handle custom/m117 notifications here!
+                if old.message != self.display_status.message:
+                    self.evaluate_m117()
+
             elif key == "virtual_sdcard":
                 await self._parse_virtual_sdcard_update(object_data)
         self.logger.debug('Src: _parse_notify_status_update')
@@ -133,7 +140,7 @@ class MobilerakerCompanion:
         params = {
             "objects": {
                 "print_stats": None,
-                # "display_status": None,
+                "display_status": None,
                 "virtual_sdcard": None
             }
         }
@@ -159,7 +166,9 @@ class MobilerakerCompanion:
             self.print_stats.state if self.klippy_ready else "error")
 
         snapshot.filename = self.print_stats.filename
-
+        snapshot.m117 = self.display_status.message
+        snapshot.m117_hash = hashlib.sha256(snapshot.m117.encode(
+            "utf-8")).hexdigest() if snapshot.m117 is not None else ''
         if self.print_stats.state == "printing":
             snapshot.progress = round(self.virtual_sdcard.progress*100)
             snapshot.printing_duration = self.print_stats.print_duration
@@ -171,6 +180,12 @@ class MobilerakerCompanion:
         response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
                                                                  {"namespace": "mobileraker", "key": f"fcm.{machine_id}.snap", "value": notification_snap.toJSON()})
         #self.logger.info(f'Snap resp: {response}')
+
+    async def update_snap_m117_in_fcm_cfg(self, machine_id: str, m117_hash: str) -> None:
+        self.logger.info(
+            f'Updating snap.m117 in FCM Cfg for {machine_id} {m117_hash}')
+        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
+                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}.snap.m117", "value": m117_hash})
 
     async def remove_old_fcm_cfg(self, machine_id: str) -> None:
         response, err = await self._jrpc.send_and_receive_method("server.database.delete_item",
@@ -223,7 +238,7 @@ class MobilerakerCompanion:
 
         if self._last_snapshot is not None:
             if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
-                (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
+                    (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
                 return
 
         dtos = []
@@ -231,7 +246,8 @@ class MobilerakerCompanion:
         #self.logger.info(f'Yes i am here! - {snapshot.progress}')
         self.logger.info(f'Got configs: {cfgs}')
         for c in cfgs:
-            self.logger.info(f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}')
+            self.logger.info(
+                f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}')
             notifications = []
 
             state_noti = self._state_notification(c, snapshot)
@@ -250,7 +266,8 @@ class MobilerakerCompanion:
             self.logger.debug(
                 f'Notifications for {c.fcm_token}: {notifications}')
 
-            self.logger.info(f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
+            self.logger.info(
+                f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
             if notifications:
                 noti_snap = NotificationSnap()
                 # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
@@ -271,9 +288,7 @@ class MobilerakerCompanion:
                 (snapshot.progress % self.remote_config.increments)
         self._last_snapshot = snapshot
 
-        request = FcmRequestDto(dtos)
-        if dtos:
-            faulty_tokens = await self._fcm_client.push(request)
+        await self._push_and_clear_faulty(dtos)
         self.logger.info('---- Done wiht evaluate notification Task! ----')
 
     def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
@@ -290,7 +305,7 @@ class MobilerakerCompanion:
             f'Got a state transition: {cfg.snap.state} -> {cur_snap.print_state}')
 
         # collect title and body to translate it
-        title = translate_using_snapshot('state_title', cfg, cur_snap)
+        title = translate_replace_placeholders('state_title', cfg, cur_snap)
         body = None
         if cur_snap.print_state == "printing":
             body = "state_printing_body"
@@ -306,7 +321,7 @@ class MobilerakerCompanion:
         if title is None or body is None:
             raise Exception("Body or Title are none!")
 
-        body = translate_using_snapshot(body, cfg, cur_snap)
+        body = translate_replace_placeholders(body, cfg, cur_snap)
         return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
 
     def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
@@ -316,20 +331,85 @@ class MobilerakerCompanion:
         if cur_snap.print_state != "printing" or cur_snap.progress == 100 or cur_snap.progress is None:
             return None
 
-        self.logger.info(f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
+        self.logger.info(
+            f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
 
         # If progress notifications are disabled, skip it!
         if cfg.settings.progress_config == -1:
             return None
 
         # ensure the progress threshhold of the user's cfg is reached, but only if the client already received an initial state and progress notification!
-        if  cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config):
+        if cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config):
             return None
 
-
-        title = translate_using_snapshot('print_progress_title', cfg, cur_snap)
-        body = translate_using_snapshot('print_progress_body', cfg, cur_snap)
+        title = translate_replace_placeholders(
+            'print_progress_title', cfg, cur_snap)
+        body = translate_replace_placeholders(
+            'print_progress_body', cfg, cur_snap)
         return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
+
+    async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
+        if dtos:
+            request = FcmRequestDto(dtos)
+            faulty_tokens = await self._fcm_client.push(request)
+            # todo: remove faulty token lol
+
+    def evaluate_m117(self) -> None:
+        if not self.init_done:
+            return
+        self.loop.create_task(self.task_evaluate_m117_notification())
+
+    async def task_evaluate_m117_notification(self):
+        if not self.init_done:
+            return
+        self.logger.info('Evaluating m117 notifications!')
+        dtos = []
+        snapshot = self._take_snapshot()
+        cfgs = await self.fetch_fcm_cfgs()
+
+        for c in cfgs:
+            notification = self._m117_notification(c, snapshot)
+            if notification is None:
+                continue
+
+            dto = DeviceRequestDto(
+                printer_id=c.machine_id,
+                token=c.fcm_token,
+                notifcations=[notification]
+            )
+            dtos.append(dto)
+            await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
+        await self._push_and_clear_faulty(dtos)
+
+    def _m117_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
+        # skip if m117 is empty/none
+        if cur_snap.m117 is None or not cur_snap.m117:
+            return None
+
+        # only issue if
+        if not cur_snap.m117.startswith('$MR$:'):
+            return None
+
+        # only evaluate if we have a new m117/hash
+        if cfg.snap.m117 == cur_snap.m117_hash:
+            return None
+
+        msg = cur_snap.m117[5:]
+        split = msg.split('|')
+
+        has_title = (len(split) == 2)
+
+        title = split[0] if has_title else translate(cfg.language,
+                                                     'm117_custom_title')
+        title = replace_placeholders(title, cfg, cur_snap)
+        body = split[1] if has_title else split[0]
+        body = replace_placeholders(body, cfg, cur_snap)
+
+        self.logger.info(
+            f'Got M117/Custom: {msg}: {title} - {body}')
+
+        return NotificationContentDto(333, f'{cfg.machine_id}-statusUpdates',
+                                      title, body)
 
 
 def main() -> None:

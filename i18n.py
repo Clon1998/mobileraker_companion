@@ -19,6 +19,7 @@ _mobileraker_en: Dict[str, str] = {
     'state_completed_body': 'Finished printing: "$file"',
     'state_error_body': 'Error while printing file: "$file"',
     'state_standby_body': 'Printer is in Standby',
+    'm117_custom_title': 'User Notification'
 
 }
 
@@ -49,32 +50,36 @@ languages: Dict[str, Dict[str, str]] = {
 
 }
 
-def translate(country_code: str, str_key: str, data: Dict[str, str] = {}):
-    if country_code not in languages:
-        # fallback to en
-        return translate('en', str_key, data)
-    translations = languages[country_code]
-    if str_key not in translations:
-        if country_code == 'en':
-            raise Exception(f'No language-entry found for "{str_key}"')
-        # fallback to en
-        return translate('en', str_key, data)
-    translation = translations[str_key]
-    for name in data:
-        translation = translation.replace(f"${name}", data[name])
 
-    return translation
-
-
-def translate_using_snapshot(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot) -> str:
+    
+def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot) -> str:
     data = {
         'printer_name': cfg.machine_name,
         'file': snap.filename if snap.filename is not None else 'UNKNOWN',
-        'eta':'' # ToDo replace with actual ETA calc...
+        'eta': ''  # ToDo replace with actual ETA calc...
     }
 
     if snap.print_state == 'printing':
         if snap.progress is not None:
             data['progress'] = f'{snap.progress}%'
+    for name in data:
+        input = input.replace(f"${name}", data[name])
+    return input
 
-    return translate(cfg.language, str_key, data)
+def translate(country_code: str, str_key: str) -> str:
+    if country_code not in languages:
+        # fallback to en
+        return translate('en', str_key)
+    translations = languages[country_code]
+    if str_key not in translations:
+        if country_code == 'en':
+            raise Exception(f'No language-entry found for "{str_key}"')
+        # fallback to en
+        return translate('en', str_key)
+    translation = translations[str_key]
+
+    return translation
+
+def translate_replace_placeholders(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot) -> str:
+    translation = translate(cfg.language, str_key)
+    return replace_placeholders(translation, cfg, snap)
