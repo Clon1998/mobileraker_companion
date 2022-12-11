@@ -318,8 +318,12 @@ class MobilerakerCompanion:
 
         self.logger.info(f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
 
+        # If progress notifications are disabled, skip it!
+        if cfg.settings.progress_config == -1:
+            return None
+
         # ensure the progress threshhold of the user's cfg is reached, but only if the client already received an initial state and progress notification!
-        if (cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config)):
+        if  cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config):
             return None
 
 
