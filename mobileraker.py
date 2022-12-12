@@ -3,7 +3,7 @@ import asyncio
 import hashlib
 import logging
 import os
-from asyncio import AbstractEventLoop
+from asyncio import AbstractEventLoop, Task
 from logging.handlers import RotatingFileHandler
 from tracemalloc import Snapshot
 from typing import Any, Dict, List, Optional, cast
@@ -50,6 +50,8 @@ class MobilerakerCompanion:
         self.logger = logging.getLogger('mobileraker')
         self._printer_fcm_id: Optional[str] = None
         self._last_snapshot: Optional[PrinterSnapshot] = None
+        self._evaulate_noti_task: Optional[Task] = None
+        self._evaulate_m117_task: Optional[Task] = None
         coloredlogs.install(
             logger=self.logger, fmt=f'%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s [{self.printer_name}] %(message)s')
 
@@ -219,10 +221,18 @@ class MobilerakerCompanion:
     def evaluate_notification(self, force: bool = False) -> None:
         if not self.init_done and not force:
             return
-        self.loop.create_task(self.task_evaluate_notification(force))
+
+
+        self.loop.create_task(
+            self.task_evaluate_notification(force))
 
     # Calculate if it should push a new notification!
     async def task_evaluate_notification(self, force: bool = False) -> None:
+        if self._evaulate_noti_task is not None:
+            await asyncio.wait_for(self._evaulate_noti_task, timeout=None)
+        self._evaulate_noti_task = asyncio.current_task()
+
+
         if not self.init_done and not force:
             return
         if not self._printer_fcm_id:
@@ -240,6 +250,7 @@ class MobilerakerCompanion:
             if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
                     (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
                 return
+        self._last_snapshot = snapshot
 
         dtos = []
         cfgs = await self.fetch_fcm_cfgs()
@@ -286,7 +297,6 @@ class MobilerakerCompanion:
         if snapshot.progress is not None:
             snapshot.progress = snapshot.progress - \
                 (snapshot.progress % self.remote_config.increments)
-        self._last_snapshot = snapshot
 
         await self._push_and_clear_faulty(dtos)
         self.logger.info('---- Done wiht evaluate notification Task! ----')
@@ -357,9 +367,15 @@ class MobilerakerCompanion:
     def evaluate_m117(self) -> None:
         if not self.init_done:
             return
-        self.loop.create_task(self.task_evaluate_m117_notification())
+
+        self.loop.create_task(
+            self.task_evaluate_m117_notification())
 
     async def task_evaluate_m117_notification(self):
+        if self._evaulate_m117_task is not None:
+            await asyncio.wait_for(self._evaulate_m117_task, timeout=None)
+        self._evaulate_m117_task = asyncio.current_task()
+    
         if not self.init_done:
             return
         self.logger.info('Evaluating m117 notifications!')
@@ -369,6 +385,9 @@ class MobilerakerCompanion:
 
         for c in cfgs:
             notification = self._m117_notification(c, snapshot)
+            if c.snap.m117 != snapshot.m117_hash:
+                await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
+
             if notification is None:
                 continue
 
@@ -378,7 +397,6 @@ class MobilerakerCompanion:
                 notifcations=[notification]
             )
             dtos.append(dto)
-            await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
         await self._push_and_clear_faulty(dtos)
 
     def _m117_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
@@ -408,7 +426,7 @@ class MobilerakerCompanion:
         self.logger.info(
             f'Got M117/Custom: {msg}: {title} - {body}')
 
-        return NotificationContentDto(333, f'{cfg.machine_id}-statusUpdates',
+        return NotificationContentDto(333, f'{cfg.machine_id}-m117',
                                       title, body)
 
 
