@@ -14,4 +14,7 @@ You can include in the title or body string the following placeholders that the 
 - `$eta` : If available, the eta of the print job #WIP
 - `$progress` : If printing, the printing progress (0-100)
 - ..more to come
-- 
+
+
+## Limitations:
+The custom notifications currently ensure that only a "new" m117 is pushed to the user's device. Therfore, issuing another M117 with the exact same content wont issue a new notification. 
