@@ -284,7 +284,8 @@ class MobilerakerCompanion:
                 # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
                 noti_snap.progress = 0 if snapshot.print_state != 'printing' and snapshot.print_state != 'paused' else c.snap.progress \
                     if progress_noti is None else snapshot.progress - (snapshot.progress % c.settings.progress_config) if snapshot.progress is not None else 0
-                noti_snap.state = c.snap.state if state_noti is None else snapshot.print_state
+                noti_snap.state = c.snap.state if state_noti is None and progress_noti is None else snapshot.print_state
+
                 await self.update_snap_in_fcm_cfg(c.machine_id, noti_snap)
                 dto = DeviceRequestDto(
                     printer_id=c.machine_id,
