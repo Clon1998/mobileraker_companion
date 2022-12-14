@@ -258,7 +258,7 @@ class MobilerakerCompanion:
         self.logger.info(f'Got configs: {cfgs}')
         for c in cfgs:
             self.logger.info(
-                f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}')
+                f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
             notifications = []
 
             state_noti = self._state_notification(c, snapshot)

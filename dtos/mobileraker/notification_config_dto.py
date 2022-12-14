@@ -96,7 +96,8 @@ class NotificationSettings:
 
         cfg.created = json['created']
         cfg.last_modified = json['lastModified']
-        cfg.progress_config = min(50, round(json['progress'] * 100))
+        prog_float = json['progress']
+        cfg.progress_config = min(50, round(prog_float * 100)) if prog_float > 0 else -1
         cfg.state_config = json['states']
 
         return cfg
