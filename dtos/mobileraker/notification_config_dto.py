@@ -51,7 +51,7 @@ class DeviceNotificationEntry:
         cfg.language = json['language']
         cfg.settings = NotificationSettings.fromJSON(json['settings'])
         cfg.snap = NotificationSnap.fromJSON(
-            json['snap']) if 'snap' in json else NotificationSnap()
+            json['snap']) if 'snap' in json and json['snap'] else NotificationSnap()
 
         return cfg
 
@@ -128,8 +128,8 @@ class NotificationSnap:
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSnap':
         cfg = NotificationSnap()
 
-        cfg.progress = round(json['progress']*100)
-        cfg.state = json['state']
+        cfg.progress = round(json['progress']*100) if 'progress' in json else -1
+        cfg.state = json['state'] if 'state' in json else 'standby'
         cfg.m117 = json['m117'] if 'm117' in json else ''
 
         return cfg
