@@ -33,8 +33,8 @@ moonraker_api_key: False
 
 By default the companion searches for a `Mobileraker.conf` file in:
 1. `~/Mobileraker.conf`
-2. `<mobileraker_companion DIR>/Mobileraker.conf`
-3. `~/klipper_config/Mobileraker.conf`
+2. `<mobileraker_companion DIR>/mobileraker.conf`
+3. `~/klipper_config/mobileraker.conf`
 
 
 A single companion instance can support multiple printers.
