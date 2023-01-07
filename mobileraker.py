@@ -414,6 +414,9 @@ class MobilerakerCompanion:
             return None
 
         msg = cur_snap.m117[5:]
+        if not msg: 
+            return None
+
         split = msg.split('|')
 
         has_title = (len(split) == 2)
