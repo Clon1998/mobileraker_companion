@@ -260,6 +260,8 @@ class MobilerakerCompanion:
             self.logger.info(
                 f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
             notifications = []
+            if not c.fcm_token:
+                continue
 
             state_noti = self._state_notification(c, snapshot)
             if state_noti is not None:
@@ -385,6 +387,8 @@ class MobilerakerCompanion:
         cfgs = await self.fetch_fcm_cfgs()
 
         for c in cfgs:
+            if not c.fcm_token:
+                continue
             notification = self._m117_notification(c, snapshot)
             if c.snap.m117 != snapshot.m117_hash:
                 await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
