@@ -48,7 +48,6 @@ class MobilerakerCompanion:
         # TODO: Fetch this from a remote server for easier configuration :)
         self.remote_config = CompanionRemoteConfig()
         self.logger = logging.getLogger('mobileraker')
-        self._printer_fcm_id: Optional[str] = None
         self._last_snapshot: Optional[PrinterSnapshot] = None
         self._evaulate_noti_task: Optional[Task] = None
         self._evaulate_m117_task: Optional[Task] = None
@@ -235,13 +234,6 @@ class MobilerakerCompanion:
 
         if not self.init_done and not force:
             return
-        if not self._printer_fcm_id:
-            id = await self.fetch_printer_id()
-            if not id:
-                self.logger.info('Was unable to fetch printer_id')
-                return
-            self.logger.info(f'Fetched printer_id: {id}')
-            self._printer_fcm_id = id
         snapshot = self._take_snapshot()
 
         # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
