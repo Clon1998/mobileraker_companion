@@ -1,254 +1,132 @@
 import argparse
 import asyncio
-import configparser
-import json
+import hashlib
 import logging
 import os
-import pathlib
-import random
-from asyncio import AbstractEventLoop
+from asyncio import AbstractEventLoop, Task
 from logging.handlers import RotatingFileHandler
+from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
-import requests
-import websockets
 
-from printer_objects import PrintStats, DisplayStatus, VirtualSDCard
-
-script_dir = pathlib.Path(__file__).parent.resolve().parent
-
-
-class CompanionRequestDto:
-    def __init__(self):
-        self.print_state = None
-        self.tokens = None
-        self.printer_identifier = None
-        self.filename = None
-        self.progress = None
-        self.printing_duration = None
-
-    def toJSON(self) -> dict:
-        out = {
-            "printState": self.print_state,
-            "tokens": self.tokens,
-            "printerIdentifier": self.printer_identifier
-        }
-
-        if self.filename:
-            out["filename"] = self.filename
-
-        if self.print_state == "printing":
-            out["progress"] = self.progress
-            out["printingDuration"] = self.printing_duration
-        return out
-
-    def __eq__(self, o: object) -> bool:
-        if not isinstance(o, CompanionRequestDto):
-            return False
-
-        return self.print_state == o.print_state and \
-               self.tokens == o.tokens and self.printer_identifier == o.printer_identifier and \
-               self.filename == o.filename and self.progress == o.progress and \
-               self.printing_duration == o.printing_duration
+from configs import CompanionLocalConfig, CompanionRemoteConfig
+from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
+                                                    FcmRequestDto,
+                                                    NotificationContentDto)
+from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
+                                                      NotificationSnap)
+from dtos.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
+                                  VirtualSDCard)
+from i18n import (replace_placeholders, translate,
+                  translate_replace_placeholders)
+from mobileraker_fcm import MobilerakerFcmClient
+from moonraker_client import MoonrakerClient
+from printer_snapshot import PrinterSnapshot
 
 
-class Client:
+class MobilerakerCompanion:
     def __init__(
             self,
+            jrpc: MoonrakerClient,
+            fcm_client: MobilerakerFcmClient,
             printer_name: str,
-            moonraker_uri: str,
-            moonraker_api: str or None,
-            fcm_uri: str,
             loop: AbstractEventLoop,
+            companion_config: CompanionLocalConfig
     ) -> None:
         super().__init__()
-        self.printer_name = printer_name
-        self.moonraker_api_key = moonraker_api
-        self.websocket = None
-        self.moonraker_server = moonraker_uri
-        self.mobileraker_fcm = fcm_uri
-        self.req_cb = {}
-        self.req_blocking = {}
-        self.loop = loop
-        self.rec_task = None
-        self.init_done = False
-        self.klippy_ready = False
+        self._jrpc: MoonrakerClient = jrpc
+        self._fcm_client: MobilerakerFcmClient = fcm_client
+        self.printer_name: str = printer_name
+        self.loop: AbstractEventLoop = loop
+        self.companion_config: CompanionLocalConfig = companion_config
+        self.init_done: bool = False
+        self.klippy_ready: bool = False
+        self.server_info: ServerInfo = ServerInfo()
         self.print_stats: PrintStats = PrintStats()
         self.display_status: DisplayStatus = DisplayStatus()
         self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
-        self.last_request: CompanionRequestDto or None = None
-        self.config = CompanionRemoteConfig()  # TODO: Fetch this from a remote server for easier configuration :)
-        self.logger = logging.getLogger('Client')
+        self.last_request: Optional[DeviceRequestDto] = None
+        # TODO: Fetch this from a remote server for easier configuration :)
+        self.remote_config = CompanionRemoteConfig()
+        self.logger = logging.getLogger('mobileraker')
+        self._last_snapshot: Optional[PrinterSnapshot] = None
+        self._evaulate_noti_task: Optional[Task] = None
+        self._evaulate_m117_task: Optional[Task] = None
+        coloredlogs.install(
+            logger=self.logger, fmt=f'%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s [{self.printer_name}] %(message)s')
+
+        self._jrpc.register_method_listener(
+            'notify_status_update', lambda resp: self.loop.create_task(self._parse_notify_status_update(resp["params"][0])))
+
+        self._jrpc.register_method_listener(
+            'notify_klippy_ready', lambda resp: self._on_klippy_ready())
+
+        self._jrpc.register_method_listener(
+            'notify_klippy_shutdown', lambda resp: self._on_klippy_shutdown())
+
+        self._jrpc.register_method_listener(
+            'notify_klippy_disconnected', lambda resp: self._on_klippy_disconnected())
 
     async def connect(self) -> None:
-        self.info("Trying to connect to: %s api key %s" % (self.moonraker_server,
-                                                           '<NO API KEY>' if self.moonraker_api_key is None else self.moonraker_api_key[
-                                                                                                         :6] + '##########################'))
-        async for websocket in websockets.connect(self.moonraker_server,
-                                                  extra_headers=None if self.moonraker_api_key is None else [
-                                                      ('X-Api-Key', self.moonraker_api_key)]):
-            try:
-                self.info("WebSocket connected")
-                self.websocket = websocket
-                if self.rec_task:
-                    self.rec_task.cancel()
-                self.rec_task = self.loop.create_task(self.start_receiving())
-                await self.init_printer_objects()
-                await self.websocket.wait_closed()
-            except websockets.ConnectionClosed:
-                self.warning("Connectionec was closed...")
-                continue
+        await self._jrpc.connect(lambda: self.loop.create_task(self._init_printer_objects()))
 
-    async def init_printer_objects(self, no_try=0):
-        self.init_done = False
-        self.info("Fetching printer Objects Try#%i" % no_try)
-        response, err = await self.send_and_receive_method("server.info")
-        await self.parse_server_info(response, err)
-
+    async def _init_printer_objects(self, no_try: int = 0) -> None:
+        self.logger.info("Fetching printer Objects Try#%i" % no_try)
+        response, err = await self._jrpc.send_and_receive_method("server.info")
+        self._parse_server_info(response, err)
+        self.klippy_ready = self.server_info.klippy_state == 'ready'
         if self.klippy_ready:
-            await self.query_printer_objects()
+            await self._query_printer_objects()
 
             if not self.init_done:
                 self.init_done = True
-                self.send_to_firebase()
-            await self.subscribe_to_notifications()
+                self.logger.debug('Src: INIT_DONE')
+                self.evaluate_notification()
+            await self._subscribe_to_object_notifications()
         else:
             wait_for = min(pow(2, no_try + 1), 30 * 60)
-            self.warning("Klippy was not ready. Trying again in %i seconds..." % wait_for)
+            self.logger.warning(
+                "Klippy was not ready. Trying again in %i seconds..." % wait_for)
             await asyncio.sleep(wait_for)
-            self.loop.create_task(self.init_printer_objects(no_try=no_try + 1))
+            self.loop.create_task(
+                self._init_printer_objects(no_try=no_try + 1))
 
-    async def start_receiving(self):
-        async for message in self.websocket:
-            await self.process_message(message)
+    async def _parse_objects_response(self, message: Dict[str, Any], err=None):
+        self.logger.debug("Received objects response %s" % message)
+        await self._parse_notify_status_update(cast(Dict, message["result"]["status"]))
 
-    async def process_message(self, message):
-        response = json.loads(message)
-        mid = response.get("id")
-        if "error" in response and "message" in response["error"]:
-            self.warning(
-                "Error message received from WebSocket-Server %s" % response["error"]["message"])
-            if mid and mid in self.req_cb:
-                await self.req_cb.pop(mid)(response, response["error"]["message"])
-        else:
-            mmethod = response.get("method")
-
-            if mid and self.req_cb:
-
-                if mid in self.req_cb:
-                    self.debug("Received a response to request: %d" % mid)
-                    await self.req_cb.pop(mid)(response)
-                else:
-                    self.error("Received a response to unknown request: %d" % mid)
-                    self.req_cb.pop(mid)
-            else:
-                self.debug("Received a method notification for method: %s" % mmethod)
-                if mmethod == "notify_status_update":
-                    # "params": [{<status object>}, <eventtime>]
-                    await self.parse_notify_status_update(response["params"][0])
-                elif mmethod == "notify_klippy_ready":
-                    self.info("Klippy has reported a ready state")
-                    self.loop.create_task(self.init_printer_objects())
-                elif mmethod == "notify_klippy_shutdown":
-                    self.on_klippy_shutdown()
-                elif mmethod == "notify_klippy_disconnected":
-                    self.info("Moonraker's connection to Klippy has terminated")
-                    self.klippy_ready = False
-                else:
-                    self.debug("Method %s not implemented/supported" % mmethod)
-
-    async def send_method(self, method: str, callback=None, params: dict = None) -> int:
-        req_dict = self.construct_json_rpc(method, params)
-        message_json = json.dumps(req_dict)
-        if callback:
-            self.req_cb[req_dict["id"]] = callback
-
-        self.debug("Sending message %s" % message_json)
-        await self.websocket.send(message_json)
-        return req_dict["id"]
-
-    async def send_and_receive_method(self, method: str, params: dict = None):
-        req_dict = self.construct_json_rpc(method, params)
-        message_json = json.dumps(req_dict)
-        m_id = req_dict["id"]
-        response_future = self.loop.create_future()
-
-        self.req_cb[m_id] = self.receive_blocking_cb
-        self.req_blocking[m_id] = response_future
-
-        self.debug("Sending message (Blocking) %s" % message_json)
-        await self.websocket.send(message_json)
-        return await response_future
-
-    async def receive_blocking_cb(self, message=None, err=None):
-        mid = message.get("id")
-        if mid in self.req_blocking:
-            response_future = self.req_blocking.pop(mid)
-            response_future.set_result((message, err))
-
-    async def parse_objects_response(self, message=None, err=None):
-        self.debug("Received objects response %s" % message)
-        await self.parse_notify_status_update(message["result"]["status"])
-
-    async def parse_notify_status_update(self, status_objects):
-        self.debug("Received status update for %s" % status_objects)
+    async def _parse_notify_status_update(self, status_objects: Dict[str, Any]):
+        self.logger.debug("Received status update for %s" % status_objects)
         for key, object_data in status_objects.items():
             if key == "print_stats":
-                await self.parse_print_stats_update(object_data)
+                await self._parse_print_stats_update(object_data)
             elif key == "display_status":
-                await self.parse_display_status_update(object_data)
+                old = self.display_status
+                await self._parse_display_status_update(object_data)
+                # handle custom/m117 notifications here!
+                if old.message != self.display_status.message:
+                    self.evaluate_m117()
+
             elif key == "virtual_sdcard":
-                await self.parse_virtual_sdcard_update(object_data)
+                await self._parse_virtual_sdcard_update(object_data)
+        self.logger.debug('Src: _parse_notify_status_update')
+        self.evaluate_notification()
 
-    async def parse_server_info(self, message=None, err=None):
-        self.info("Received Server Info")
-        message = message["result"]
-        klippy_state = message.get("klippy_state")
-        if klippy_state == "ready":
-            self.klippy_ready = True
-        else:
-            self.klippy_ready = False
+    def _parse_server_info(self, message: Dict[str, Any], err=None):
+        self.logger.info("Received Server Info")
+        self.server_info = self.server_info.updateWith(message['result'])
 
-    async def parse_print_stats_update(self, print_stats):
-        if "filename" in print_stats:
-            self.print_stats.filename = print_stats["filename"]
-        if "total_duration" in print_stats:
-            self.print_stats.total_duration = print_stats["total_duration"]
-        if "print_duration" in print_stats:
-            self.print_stats.print_duration = print_stats["print_duration"]
-        if "state" in print_stats:
-            self.print_stats.state = print_stats["state"]
-        if "message" in print_stats:
-            self.print_stats.message = print_stats["message"]
+    async def _parse_print_stats_update(self, print_stats):
+        self.print_stats = self.print_stats.updateWith(print_stats)
 
-        if self.last_request is None or self.last_request.print_state != self.print_stats.state:
-            self.debug("Send to FB - Print Stats")
-            await self.on_print_state_transition(self.print_stats.state)
+    async def _parse_display_status_update(self, display_status):
+        self.display_status = self.display_status.updateWith(display_status)
 
-    async def parse_display_status_update(self, display_status):
-        # Tbh. I dont care about the message
-        if "message" in display_status:
-            self.display_status.message = display_status["message"]
-        if "progress" in display_status:
-            self.display_status.progress = display_status["progress"]
+    async def _parse_virtual_sdcard_update(self, virtual_sdcard):
+        self.virtual_sdcard = self.virtual_sdcard.updateWith(virtual_sdcard)
 
-        # if self.display_status.progress and incoming.progress - self.display_status.progress >= self.config.increments:
-        #     self.display_status = incoming
-        #     self.send_to_firebase()
-
-    async def parse_virtual_sdcard_update(self, virtual_sdcard):
-
-        if "file_position" in virtual_sdcard:
-            self.virtual_sdcard.file_position = virtual_sdcard["file_position"]
-        if "progress" in virtual_sdcard:
-            self.virtual_sdcard.progress = virtual_sdcard["progress"]
-
-        if self.last_request is None or self.last_request.progress is None or self.virtual_sdcard.progress - self.last_request.progress >= self.config.increments:
-            self.debug("Send to FB - Virtual SD")
-            self.send_to_firebase()
-
-    async def query_printer_objects(self):
-        self.info("Querying printer Objects")
+    async def _query_printer_objects(self):
+        self.logger.info("Querying printer Objects")
         params = {
             "objects": {
                 "print_stats": None,
@@ -256,178 +134,301 @@ class Client:
                 "virtual_sdcard": None
             }
         }
-        response, err = await self.send_and_receive_method("printer.objects.query", params)
-        await self.parse_objects_response(response, err)
+        response, err = await self._jrpc.send_and_receive_method("printer.objects.query", params)
+        await self._parse_objects_response(response, err)
 
-    async def subscribe_to_notifications(self):
-        self.info("Subscribing to printer Objects")
+    async def _subscribe_to_object_notifications(self):
+        self.logger.info("Subscribing to printer Objects")
         params = {
             "objects": {
                 "print_stats": None,
-                # "display_status": None,
+                "display_status": None,
                 "virtual_sdcard": None
             }
         }
-        await self.send_method("printer.objects.subscribe", self.parse_objects_response, params)
+        await self._jrpc.send_method("printer.objects.subscribe", self._parse_objects_response, params)
 
-    async def on_print_state_transition(self, new):
-        self.info(
-            "print_state transition %s -> %s" % (
-                "NONE" if self.last_request is None else self.last_request.print_state, new))
-        self.send_to_firebase()
+    def _on_klippy_ready(self):
+        self.logger.info("Klippy has reported a ready state")
+        self.loop.create_task(self._init_printer_objects())
 
-    def construct_json_rpc(self, method: str, params: dict = None) -> dict:
-        while True:
-            id = random.randrange(10000)
-            if id not in self.req_cb.keys():
-                break
-        req = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "id": id
-        }
-        if params:
-            req["params"] = params
-
-        return req
-
-    def on_klippy_shutdown(self):
-        self.info("Klippy has reported a shutdown state")
+    def _on_klippy_shutdown(self):
+        self.logger.info("Klippy has reported a shutdown state")
         self.klippy_ready = False
-        self.send_to_firebase(True)
+        self.logger.debug('Src: _on_klippy_shutdown')
+        self.evaluate_notification(True)
 
-    async def collect_for_notification(self) -> CompanionRequestDto:
-        req = CompanionRequestDto()
+    def _on_klippy_disconnected(self):
+        self.logger.info(
+            "Moonraker's connection to Klippy has terminated/disconnected")
+        self.klippy_ready = False
 
-        req.print_state = self.print_stats.state if self.klippy_ready else "error"
-        req.tokens = await self.fetch_fcm_tokens()
-        req.printer_identifier = await self.fetch_printer_id()
+    def _take_snapshot(self) -> PrinterSnapshot:
+        snapshot = PrinterSnapshot(
+            self.print_stats.state if self.klippy_ready else "error")
 
-        if self.print_stats.filename:
-            req.filename = self.print_stats.filename
-
+        snapshot.filename = self.print_stats.filename
+        snapshot.m117 = self.display_status.message
+        snapshot.m117_hash = hashlib.sha256(snapshot.m117.encode(
+            "utf-8")).hexdigest() if snapshot.m117 is not None else ''
         if self.print_stats.state == "printing":
-            req.progress = self.virtual_sdcard.progress
-            req.printing_duration = self.print_stats.print_duration
-        return req
+            snapshot.progress = round(self.virtual_sdcard.progress*100)
+            snapshot.printing_duration = self.print_stats.print_duration
+        return snapshot
 
-    def send_to_firebase(self, force=False):
-        if not force and (not self.init_done or not self.klippy_ready):
-            return
-        self.loop.create_task(self.task_firebase())
+    async def update_snap_in_fcm_cfg(self, machine_id: str, notification_snap: NotificationSnap) -> None:
+        self.logger.info(
+            f'Updating snap in FCM Cfg for {machine_id} {notification_snap.progress}, {notification_snap.state}')
+        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
+                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}.snap", "value": notification_snap.toJSON()})
+        #self.logger.info(f'Snap resp: {response}')
 
-    async def task_firebase(self):
-        # await self.send_method("server.database.get_item", self.fcm_token_received,
-        #                        {"namespace": "mobileraker", "key": "fcmTokens"})
-        request_dto = await self.collect_for_notification()
-        if self.last_request == request_dto:
-            return
-        self.last_request = request_dto
-        if request_dto.printer_identifier is None:
-            self.warning("Could not send to mobileraker-fcm, no printerIdentifier found!")
-            return
-        if not request_dto.tokens:
-            self.warning("Could not send to mobileraker-fcm, no tokens available!")
-        self.info("Sending to firebase fcm (%s): %s" % (self.mobileraker_fcm, request_dto.toJSON()))
-        try:
-            res = requests.post(self.mobileraker_fcm + '/companion/update', json=request_dto.toJSON())
-            await self.handle_fcm_send_response(res)
-        except requests.exceptions.ConnectionError as err:
-            self.error("Could not reach the mobileraker server!")
+    async def update_snap_m117_in_fcm_cfg(self, machine_id: str, m117_hash: str) -> None:
+        self.logger.info(
+            f'Updating snap.m117 in FCM Cfg for {machine_id} {m117_hash}')
+        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
+                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}.snap.m117", "value": m117_hash})
 
-    async def fetch_fcm_tokens(self):
-        response, err = await self.send_and_receive_method("server.database.get_item",
-                                                           {"namespace": "mobileraker", "key": "fcmTokens"})
-        fcm_tokens = []
+    async def remove_old_fcm_cfg(self, machine_id: str) -> None:
+        response, err = await self._jrpc.send_and_receive_method("server.database.delete_item",
+                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}"})
+
+    async def fetch_fcm_cfgs(self) -> List[DeviceNotificationEntry]:
+        response, err = await self._jrpc.send_and_receive_method("server.database.get_item",
+                                                                 {"namespace": "mobileraker", "key": "fcm"})
+        cfgs = []
+
         if not err:
-            fcm_tokens.extend(response["result"]["value"])
-        return fcm_tokens
+            rawCfg = response["result"]["value"]
+            for entry_id in rawCfg:
+                deviceJson = rawCfg[entry_id]
+                if ('fcmToken' not in deviceJson):
+                    await self.remove_old_fcm_cfg(entry_id)
+                    continue
+                deviceJson['machineId'] = entry_id
+                cfg = DeviceNotificationEntry.fromJSON(deviceJson)
+                cfgs.append(cfg)
 
-    async def fetch_printer_id(self):
-        response, err = await self.send_and_receive_method("server.database.get_item",
-                                                           {"namespace": "mobileraker", "key": "printerId"})
+        return cfgs
+
+    async def fetch_printer_id(self) -> Optional[str]:
+        response, err = await self._jrpc.send_and_receive_method("server.database.get_item",
+                                                                 {"namespace": "mobileraker", "key": "printerId"})
         if not err:
             return response["result"]["value"]
         return None
 
-    async def remove_fcm_token_at(self, index):
-        tokens = await self.fetch_fcm_tokens()
-        removed_token = tokens.pop(index)
-        self.info("Trying to remove token %s" % removed_token)
-        await self.send_method("server.database.post_item", params=
-        {"namespace": "mobileraker", "key": "fcmTokens",
-         "value": tokens})
+    def evaluate_notification(self, force: bool = False) -> None:
+        if not self.init_done and not force:
+            return
 
-    async def handle_fcm_send_response(self, res):
-        if res.status_code == 200:
-            message = res.content
-            response = json.loads(message)
-            responses = response['responses']
-            for idx, res in enumerate(responses):
-                if not res["successful"]:
-                    await self.remove_fcm_token_at(idx)
+        self.loop.create_task(
+            self.task_evaluate_notification(force))
 
-    def info(self, log: str):
-        self.logger.info('[%s] %s' % (self.printer_name, log))
+    # Calculate if it should push a new notification!
+    async def task_evaluate_notification(self, force: bool = False) -> None:
+        if self._evaulate_noti_task is not None:
+            await asyncio.wait_for(self._evaulate_noti_task, timeout=None)
+        self._evaulate_noti_task = asyncio.current_task()
 
-    def error(self, log: str):
-        self.logger.error('[%s] %s' % (self.printer_name, log))
+        if not self.init_done and not force:
+            return
+        snapshot = self._take_snapshot()
 
-    def warning(self, log: str):
-        self.logger.warning('[%s] %s' % (self.printer_name, log))
+        # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
 
-    def debug(self, log: str):
-        self.logger.debug('[%s] %s' % (self.printer_name, log))
+        if self._last_snapshot is not None:
+            if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
+                    (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
+                return
+        self._last_snapshot = snapshot
 
+        dtos = []
+        cfgs = await self.fetch_fcm_cfgs()
+        #self.logger.info(f'Yes i am here! - {snapshot.progress}')
+        self.logger.info(f'Got configs: {cfgs}')
+        for c in cfgs:
+            self.logger.info(
+                f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
+            notifications = []
+            if not c.fcm_token:
+                continue
 
-class CompanionRemoteConfig:
+            state_noti = self._state_notification(c, snapshot)
+            if state_noti is not None:
+                notifications.append(state_noti)
+                self.logger.info(
+                    f'StateNoti: {state_noti.title} - {state_noti.body}')
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.increments = 0.05
-        self.uri = "some url"
+            progress_noti = self._progress_notification(
+                c, snapshot)
+            if progress_noti is not None:
+                notifications.append(progress_noti)
+                self.logger.info(
+                    f'ProgressNoti: {progress_noti.title} - {progress_noti.body}')
 
+            self.logger.debug(
+                f'Notifications for {c.fcm_token}: {notifications}')
 
-# Taken from Klipper Screen : https://github.com/jordanruthe/KlipperScreen/blob/eedf5448a0e6540d7eb75385f4c5c72d75b41040/ks_includes/config.py#L266-L281
-class CompanionLocalConfig:
-    default_file_name = "Mobileraker.conf"
+            self.logger.info(
+                f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
+            if notifications:
+                noti_snap = NotificationSnap()
+                # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
+                noti_snap.progress = 0 if snapshot.print_state != 'printing' and snapshot.print_state != 'paused' else c.snap.progress \
+                    if progress_noti is None else snapshot.progress - (snapshot.progress % c.settings.progress_config) if snapshot.progress is not None else 0
+                noti_snap.state = snapshot.print_state
 
-    def __init__(self, configfile):
-        self.config = configparser.ConfigParser()
-        self.config.read(self.get_config_file_location(configfile))
-        self.printers = {}
-        printer_sections = sorted([i for i in self.config.sections() if i.startswith("printer ")])
+                await self.update_snap_in_fcm_cfg(c.machine_id, noti_snap)
+                dto = DeviceRequestDto(
+                    printer_id=c.machine_id,
+                    token=c.fcm_token,
+                    notifcations=notifications
+                )
+                dtos.append(dto)
+                #self.logger.info(f'Dto: {dto.toJSON()}')
+        # just ensure the next update is in 5% steps at least!
+        if snapshot.progress is not None:
+            snapshot.progress = snapshot.progress - \
+                (snapshot.progress % self.remote_config.increments)
 
-        # Taken from Klipper Screen: https://github.com/jordanruthe/KlipperScreen/blob/37c10fc8b373944ea138574a44bbfa0a5dcf0a98/ks_includes/config.py#L68-L85
-        for printer in printer_sections:
-            api_key = self.config.get(printer, "moonraker_api_key", fallback=None)
-            self.printers[printer[8:]] = {
-                "moonraker_uri": self.config.get(printer, "moonraker_uri", fallback="ws://127.0.0.1:7125/websocket"),
-                "moonraker_api_key": None if api_key == 'False' or not api_key else api_key
-            }
+        await self._push_and_clear_faulty(dtos)
+        self.logger.info('---- Done wiht evaluate notification Task! ----')
 
-        if len(self.printers) <= 0:
-            self.printers['_Default'] = {
-                "moonraker_uri": "ws://127.0.0.1:7125/websocket",
-                "moonraker_api_key": None
-            }
-        logging.info("Read %i printer config sections" % len(self.printers))
+    def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
 
-    def get_config_file_location(self, file):
-        logging.info("Passed config file: %s" % file)
-        if not os.path.exists(file):
-            file = os.path.join(script_dir, self.default_file_name)
-            if not os.path.exists(file):
-                file = self.default_file_name.lower()
-                if not os.path.exists(file):
-                    klipper_config = os.path.join(os.path.expanduser("~/"), "klipper_config")
-                    file = os.path.join(klipper_config, self.default_file_name)
-                    if not os.path.exists(file):
-                        file = os.path.join(klipper_config, self.default_file_name.lower())
-                        # if not os.path.exists(file):
-                        #     file = self.default_config_path
-        logging.info("Found configuration file at: %s" % os.path.abspath(file))
-        return file
+        # check if we even need to issue a new notification!
+        if cfg.snap.state == cur_snap.print_state:
+            return None
+
+        # check if new print state actually should issue a notification trough user configs
+        if cur_snap.print_state not in cfg.settings.state_config:
+            return None
+
+        self.logger.info(
+            f'Got a state transition: {cfg.snap.state} -> {cur_snap.print_state}')
+
+        # collect title and body to translate it
+        title = translate_replace_placeholders(
+            'state_title', cfg, cur_snap, self.companion_config)
+        body = None
+        if cur_snap.print_state == "printing":
+            body = "state_printing_body"
+        elif cur_snap.print_state == "paused":
+            body = "state_paused_body"
+        elif cur_snap.print_state == "complete":
+            body = "state_completed_body"
+        elif cur_snap.print_state == "error":
+            body = "state_error_body"
+        elif cur_snap.print_state == "standby":
+            body = "state_standby_body"
+
+        if title is None or body is None:
+            raise Exception("Body or Title are none!")
+
+        body = translate_replace_placeholders(
+            body, cfg, cur_snap, self.companion_config)
+        return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
+
+    def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
+
+        # only issue new progress notifications if the printer is printing
+        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
+        if cur_snap.print_state != "printing" or cur_snap.progress == 100 or cur_snap.progress is None:
+            return None
+
+        self.logger.info(
+            f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
+
+        # If progress notifications are disabled, skip it!
+        if cfg.settings.progress_config == -1:
+            return None
+
+        # ensure the progress threshhold of the user's cfg is reached, but only if the client already received an initial state and progress notification!
+        if cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config):
+            return None
+
+        title = translate_replace_placeholders(
+            'print_progress_title', cfg, cur_snap, self.companion_config)
+        body = translate_replace_placeholders(
+            'print_progress_body', cfg, cur_snap, self.companion_config)
+        return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
+
+    async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
+        if dtos:
+            request = FcmRequestDto(dtos)
+            faulty_tokens = await self._fcm_client.push(request)
+            # todo: remove faulty token lol
+
+    def evaluate_m117(self) -> None:
+        if not self.init_done:
+            return
+
+        self.loop.create_task(
+            self.task_evaluate_m117_notification())
+
+    async def task_evaluate_m117_notification(self):
+        if self._evaulate_m117_task is not None:
+            await asyncio.wait_for(self._evaulate_m117_task, timeout=None)
+        self._evaulate_m117_task = asyncio.current_task()
+
+        if not self.init_done:
+            return
+        self.logger.info('Evaluating m117 notifications!')
+        dtos = []
+        snapshot = self._take_snapshot()
+        cfgs = await self.fetch_fcm_cfgs()
+
+        for c in cfgs:
+            if not c.fcm_token:
+                continue
+            notification = self._m117_notification(c, snapshot)
+            if c.snap.m117 != snapshot.m117_hash:
+                await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
+
+            if notification is None:
+                continue
+
+            dto = DeviceRequestDto(
+                printer_id=c.machine_id,
+                token=c.fcm_token,
+                notifcations=[notification]
+            )
+            dtos.append(dto)
+        await self._push_and_clear_faulty(dtos)
+
+    def _m117_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
+        # skip if m117 is empty/none
+        if cur_snap.m117 is None or not cur_snap.m117:
+            return None
+
+        # only issue if
+        if not cur_snap.m117.startswith('$MR$:'):
+            return None
+
+        # only evaluate if we have a new m117/hash
+        if cfg.snap.m117 == cur_snap.m117_hash:
+            return None
+
+        msg = cur_snap.m117[5:]
+        if not msg:
+            return None
+
+        split = msg.split('|')
+
+        has_title = (len(split) == 2)
+
+        title = split[0] if has_title else translate(cfg.language,
+                                                     'm117_custom_title')
+        title = replace_placeholders(title, cfg, cur_snap, self.companion_config)
+        body = split[1] if has_title else split[0]
+        body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
+
+        self.logger.info(
+            f'Got M117/Custom: {msg}: {title} - {body}')
+
+        return NotificationContentDto(333, f'{cfg.machine_id}-m117',
+                                      title, body)
 
 
 def main() -> None:
@@ -445,7 +446,6 @@ def main() -> None:
     )
 
     cmd_line_args = parser.parse_args()
-
 
     if cmd_line_args.nologfile:
         log_file = ""
@@ -468,11 +468,24 @@ def main() -> None:
         printers = local_config.printers
         for printer_name in printers:
             p_config = printers[printer_name]
-            client = Client(
-                printer_name=printer_name, moonraker_uri=p_config['moonraker_uri'],
-                moonraker_api=p_config['moonraker_api_key'],
-                fcm_uri='https://mobileraker.eliteschw31n.de', loop=event_loop)
+
+            jrpc = MoonrakerClient(
+                p_config['moonraker_uri'],
+                p_config['moonraker_api_key'],
+                event_loop)
+            fcmc = MobilerakerFcmClient(
+                # 'http://127.0.0.1:8080',
+                'https://mobileraker.eliteschw31n.de',
+                event_loop)
+
+            client = MobilerakerCompanion(
+                jrpc=jrpc,
+                fcm_client=fcmc,
+                printer_name=printer_name,
+                loop=event_loop,
+                companion_config=local_config)
             event_loop.create_task(client.connect())
+
         event_loop.run_forever()
     finally:
         event_loop.close()
@@ -480,6 +493,5 @@ def main() -> None:
 
 
 coloredlogs.install(level=logging.INFO)
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()

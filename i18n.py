@@ -1,7 +1,9 @@
 
 from typing import Dict
+from configs import CompanionLocalConfig
 
-from dtos.mobileraker.notification_config_dto import DeviceNotificationConfig
+from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
+from notification_placeholders import replace_placeholders
 from printer_snapshot import PrinterSnapshot
 
 # List of available tokens
@@ -18,6 +20,8 @@ _mobileraker_en: Dict[str, str] = {
     'state_paused_body': 'Paused printing file: "$file"',
     'state_completed_body': 'Finished printing: "$file"',
     'state_error_body': 'Error while printing file: "$file"',
+    'state_standby_body': 'Printer is in Standby',
+    'm117_custom_title': 'User Notification'
 
 }
 
@@ -49,31 +53,23 @@ languages: Dict[str, Dict[str, str]] = {
 }
 
 
-def translate(country_code: str, str_key: str, data: dict[str, str] = {}):
+def translate(country_code: str, str_key: str) -> str:
     if country_code not in languages:
         # fallback to en
-        return translate('en', str_key, data)
+        return translate('en', str_key)
     translations = languages[country_code]
     if str_key not in translations:
         if country_code == 'en':
             raise Exception(f'No language-entry found for "{str_key}"')
         # fallback to en
-        return translate('en', str_key, data)
+        return translate('en', str_key)
     translation = translations[str_key]
-    for name in data:
-        translation = translation.replace(f"${name}", data[name])
 
     return translation
 
 
-def translate_using_snapshot(str_key: str, cfg: DeviceNotificationConfig, snap: PrinterSnapshot) -> str:
-    data = {
-        'printer_name': cfg.machine_name,
-        'file': snap.filename if snap.filename is not None else 'UNKNOWN'
-    }
-
-    if snap.print_state == 'printing':
-        if snap.progress is not None:
-            data['progress'] = f'{snap.progress*100:.0f}%'
-
-    return translate(cfg.language, str_key, data)
+def translate_replace_placeholders(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig) -> str:
+    # For now users can only globally define the notification language!
+    translation = translate(companion_config.language, str_key)
+    # translation = translate(cfg.language, str_key)
+    return replace_placeholders(translation, cfg, snap, companion_config)

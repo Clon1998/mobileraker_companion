@@ -1,3 +1,6 @@
+mobileraker.conf
+Mobileraker.conf
+TODOS
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -151,3 +154,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 .idea/
+.DS_Store
