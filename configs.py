@@ -1,8 +1,12 @@
 import configparser
+import datetime
 import logging
 import os
 import pathlib
+import time
 from typing import Any, Dict
+
+import pytz
 
 script_dir = pathlib.Path(__file__).parent.resolve().parent
 
@@ -42,6 +46,16 @@ class CompanionLocalConfig:
                 "moonraker_api_key": None,
             }
         logging.info("Read %i printer config sections" % len(self.printers))
+
+        self.language: str = self.config.get(
+            'general', 'language', fallback='en')
+        self.timezone_str: str = self.config.get(
+            'general', 'timezone', fallback=time.tzname[0])  # fallback to system timezone (Hopefully)
+        self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str)
+        self.eta_format: str = self.config.get(
+            'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')
+        logging.info(
+            f'Main section read, language:"{self.language}", timezone:"{self.timezone_str}", eta_format:"{self.eta_format}"')
 
     def get_config_file_location(self, file: str) -> str:
         logging.info("Passed config file is: %s" % file)

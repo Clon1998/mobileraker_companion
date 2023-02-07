@@ -1,7 +1,9 @@
 
 from typing import Dict
+from configs import CompanionLocalConfig
 
 from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
+from notification_placeholders import replace_placeholders
 from printer_snapshot import PrinterSnapshot
 
 # List of available tokens
@@ -51,21 +53,6 @@ languages: Dict[str, Dict[str, str]] = {
 }
 
 
-    
-def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot) -> str:
-    data = {
-        'printer_name': cfg.machine_name,
-        'file': snap.filename if snap.filename is not None else 'UNKNOWN',
-        'eta': ''  # ToDo replace with actual ETA calc...
-    }
-
-    if snap.print_state == 'printing':
-        if snap.progress is not None:
-            data['progress'] = f'{snap.progress}%'
-    for name in data:
-        input = input.replace(f"${name}", data[name])
-    return input
-
 def translate(country_code: str, str_key: str) -> str:
     if country_code not in languages:
         # fallback to en
@@ -80,6 +67,9 @@ def translate(country_code: str, str_key: str) -> str:
 
     return translation
 
-def translate_replace_placeholders(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot) -> str:
-    translation = translate(cfg.language, str_key)
-    return replace_placeholders(translation, cfg, snap)
+
+def translate_replace_placeholders(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig) -> str:
+    # For now users can only globally define the notification language!
+    translation = translate(companion_config.language, str_key)
+    # translation = translate(cfg.language, str_key)
+    return replace_placeholders(translation, cfg, snap, companion_config)

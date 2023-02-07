@@ -5,7 +5,6 @@ import logging
 import os
 from asyncio import AbstractEventLoop, Task
 from logging.handlers import RotatingFileHandler
-from tracemalloc import Snapshot
 from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
@@ -32,12 +31,14 @@ class MobilerakerCompanion:
             fcm_client: MobilerakerFcmClient,
             printer_name: str,
             loop: AbstractEventLoop,
+            companion_config: CompanionLocalConfig
     ) -> None:
         super().__init__()
         self._jrpc: MoonrakerClient = jrpc
         self._fcm_client: MobilerakerFcmClient = fcm_client
         self.printer_name: str = printer_name
         self.loop: AbstractEventLoop = loop
+        self.companion_config: CompanionLocalConfig = companion_config
         self.init_done: bool = False
         self.klippy_ready: bool = False
         self.server_info: ServerInfo = ServerInfo()
@@ -221,7 +222,6 @@ class MobilerakerCompanion:
         if not self.init_done and not force:
             return
 
-
         self.loop.create_task(
             self.task_evaluate_notification(force))
 
@@ -230,7 +230,6 @@ class MobilerakerCompanion:
         if self._evaulate_noti_task is not None:
             await asyncio.wait_for(self._evaulate_noti_task, timeout=None)
         self._evaulate_noti_task = asyncio.current_task()
-
 
         if not self.init_done and not force:
             return
@@ -310,7 +309,8 @@ class MobilerakerCompanion:
             f'Got a state transition: {cfg.snap.state} -> {cur_snap.print_state}')
 
         # collect title and body to translate it
-        title = translate_replace_placeholders('state_title', cfg, cur_snap)
+        title = translate_replace_placeholders(
+            'state_title', cfg, cur_snap, self.companion_config)
         body = None
         if cur_snap.print_state == "printing":
             body = "state_printing_body"
@@ -326,7 +326,8 @@ class MobilerakerCompanion:
         if title is None or body is None:
             raise Exception("Body or Title are none!")
 
-        body = translate_replace_placeholders(body, cfg, cur_snap)
+        body = translate_replace_placeholders(
+            body, cfg, cur_snap, self.companion_config)
         return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
 
     def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
@@ -348,9 +349,9 @@ class MobilerakerCompanion:
             return None
 
         title = translate_replace_placeholders(
-            'print_progress_title', cfg, cur_snap)
+            'print_progress_title', cfg, cur_snap, self.companion_config)
         body = translate_replace_placeholders(
-            'print_progress_body', cfg, cur_snap)
+            'print_progress_body', cfg, cur_snap, self.companion_config)
         return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
 
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
@@ -370,7 +371,7 @@ class MobilerakerCompanion:
         if self._evaulate_m117_task is not None:
             await asyncio.wait_for(self._evaulate_m117_task, timeout=None)
         self._evaulate_m117_task = asyncio.current_task()
-    
+
         if not self.init_done:
             return
         self.logger.info('Evaluating m117 notifications!')
@@ -410,7 +411,7 @@ class MobilerakerCompanion:
             return None
 
         msg = cur_snap.m117[5:]
-        if not msg: 
+        if not msg:
             return None
 
         split = msg.split('|')
@@ -419,9 +420,9 @@ class MobilerakerCompanion:
 
         title = split[0] if has_title else translate(cfg.language,
                                                      'm117_custom_title')
-        title = replace_placeholders(title, cfg, cur_snap)
+        title = replace_placeholders(title, cfg, cur_snap, self.companion_config)
         body = split[1] if has_title else split[0]
-        body = replace_placeholders(body, cfg, cur_snap)
+        body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
 
         self.logger.info(
             f'Got M117/Custom: {msg}: {title} - {body}')
@@ -481,7 +482,8 @@ def main() -> None:
                 jrpc=jrpc,
                 fcm_client=fcmc,
                 printer_name=printer_name,
-                loop=event_loop)
+                loop=event_loop,
+                companion_config=local_config)
             event_loop.create_task(client.connect())
 
         event_loop.run_forever()

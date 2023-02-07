@@ -1,3 +1,4 @@
+from datetime import datetime, tzinfo, timedelta
 from typing import Optional
 
 
@@ -13,3 +14,20 @@ class PrinterSnapshot:
         self.progress: Optional[int] = None
         self.filename: Optional[str] = None
         self.printing_duration: Optional[int] = None
+
+    def get_remaining_seconds(self) -> Optional[int]:
+        if self.printing_duration and self.progress and self.printing_duration > 0 and self.progress > 0:
+            return round(self.printing_duration/(self.progress/100) - self.printing_duration)
+
+    def get_formatted_remaining_time(self) -> Optional[str]:
+        sec = self.get_remaining_seconds()
+        if sec:
+            return str(timedelta(seconds=sec))[:-3]  # remove the seconds part
+
+    def get_eta(self, timezone: tzinfo) -> Optional[datetime]:
+        remaining = self.get_remaining_seconds()
+        if remaining:
+            now = datetime.now(timezone)
+            eta = now + timedelta(seconds=remaining)
+            return eta
+
