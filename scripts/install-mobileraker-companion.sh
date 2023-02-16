@@ -36,8 +36,7 @@ install_script()
 #Systemd service file for mobileraker
 [Unit]
 Description=Companion app to enable push notifications on mobileraker
-Requires=network-online.target
-After=network-online.target
+After=network-online.target moonraker.service
 
 [Install]
 WantedBy=multi-user.target
@@ -45,7 +44,6 @@ WantedBy=multi-user.target
 [Service]
 Type=simple
 User=$USER
-RemainAfterExit=yes
 WorkingDirectory=${SRCDIR}
 ExecStart=${LAUNCH_CMD} -l ${LOG_PATH}
 Restart=always
