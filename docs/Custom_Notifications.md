@@ -1,5 +1,5 @@
 ## General
->  **_NOTE:_** THIS IS STILL WIP
+>  **_NOTE:_** THIS IS STILL WIP!
 
 
 Custom notifications are supported through the gcode command `M117` and the prefix `$MR$:`. 
