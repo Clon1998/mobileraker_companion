@@ -7,6 +7,7 @@ FORCE_DEFAULTS="${MOBILERAKER_FORCE_DEFAULTS:-n}"
 LOG_PATH="${MOBILERAKER_LOG_PATH:-/tmp/mobileraker.log}"
 
 SYSTEMDDIR="/etc/systemd/system"
+MOONRAKER_ASVC = "~/printer_data/moonraker.asvc"
 
 create_virtualenv()
 {
@@ -75,6 +76,19 @@ verify_ready()
     fi
 }
 
+
+
+add_to_asvc()
+{
+    if [-f ${MOONRAKER_ASVC}]; then
+        echo "moonraker.asvc was found"
+        if ! grep -q mobileraker ${MOONRAKER_ASVC}; then
+            echo "moonraker.asvc does not contain 'mobileraker'! Adding it..."
+            echo 'mobileraker' >> ${MOONRAKER_ASVC}
+        fi
+    fi
+}
+
 # Force script to exit if an error occurs
 set -e
 
@@ -95,4 +109,5 @@ done
 verify_ready
 create_virtualenv
 install_script
+add_to_asvc
 start_software
