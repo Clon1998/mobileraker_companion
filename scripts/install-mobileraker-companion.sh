@@ -7,7 +7,7 @@ FORCE_DEFAULTS="${MOBILERAKER_FORCE_DEFAULTS:-n}"
 LOG_PATH="${MOBILERAKER_LOG_PATH:-/tmp/mobileraker.log}"
 
 SYSTEMDDIR="/etc/systemd/system"
-MOONRAKER_ASVC = "~/printer_data/moonraker.asvc"
+MOONRAKER_ASVC="~/printer_data/moonraker.asvc"
 
 create_virtualenv()
 {
