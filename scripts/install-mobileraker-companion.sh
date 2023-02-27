@@ -86,7 +86,7 @@ add_to_asvc()
         echo "moonraker.asvc was found"
         if ! grep -q mobileraker $MOONRAKER_ASVC; then
             echo "moonraker.asvc does not contain 'mobileraker'! Adding it..."
-            echo -e "\nmobileraker" >> $MOONRAKER_ASVC
+            echo -e "mobileraker" >> $MOONRAKER_ASVC
         fi
     fi
 }
