@@ -4,6 +4,13 @@
 PYTHONDIR="${MOBILERAKER_VENV:-${HOME}/mobileraker-env}"
 SYSTEMDDIR="/etc/systemd/system"
 
+# If we're running as root we don't need sudo.
+if [ "$EUID" -eq 0 ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
 remove_virtualenv()
 {
     report_status "Removing python virtual environment..."
@@ -21,12 +28,12 @@ remove_script()
     SERVICE_FILE="${SYSTEMDDIR}/mobileraker.service"
     [ ! -f $SERVICE_FILE ] && return
     report_status "Stopping the service ..."
-	sudo systemctl stop mobileraker.service
-	sudo systemctl disable mobileraker.service
-	report_status "Removing the service ..."
-	sudo rm $SERVICE_FILE 
+    $SUDO systemctl stop mobileraker.service
+    $SUDO systemctl disable mobileraker.service
+    report_status "Removing the service ..."
+    $SUDO rm $SERVICE_FILE
 
-    sudo systemctl daemon-reload
+    $SUDO systemctl daemon-reload
 }
 
 report_status()
@@ -45,8 +52,6 @@ verify_ready()
 
 # Force script to exit if an error occurs
 set -e
-
-
 
 # Run installation steps defined above
 verify_ready

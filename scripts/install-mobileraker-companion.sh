@@ -10,6 +10,13 @@ SYSTEMDDIR="/etc/systemd/system"
 
 MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 
+# If we're running as root we don't need sudo.
+if [ "$EUID" -eq 0 ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
 create_virtualenv()
 {
     report_status "Installing python virtual environment..."
@@ -34,7 +41,7 @@ install_script()
     SERVICE_FILE="${SYSTEMDDIR}/mobileraker.service"
     [ -f $SERVICE_FILE ] && [ $FORCE_DEFAULTS = "n" ] && return
     report_status "Installing system start script..."
-    sudo /bin/sh -c "cat > ${SERVICE_FILE}" << EOF
+    $SUDO /bin/sh -c "cat > ${SERVICE_FILE}" << EOF
 #Systemd service file for mobileraker
 [Unit]
 Description=Companion app to enable push notifications on mobileraker
@@ -52,15 +59,15 @@ Restart=always
 RestartSec=10
 EOF
 # Use systemctl to enable the klipper systemd service script
-    sudo systemctl enable mobileraker.service
-    sudo systemctl daemon-reload
+    $SUDO systemctl enable mobileraker.service
+    $SUDO systemctl daemon-reload
 }
 
 
 start_software()
 {
     report_status "Launching mobileraker Companion..."
-    sudo systemctl restart mobileraker
+    $SUDO systemctl restart mobileraker
 }
 
 # Helper functions
