@@ -3,7 +3,7 @@ import asyncio
 import hashlib
 import logging
 import os
-from asyncio import AbstractEventLoop, Task
+from asyncio import AbstractEventLoop, Lock, Task
 from logging.handlers import RotatingFileHandler
 from typing import Any, Dict, List, Optional, cast
 
@@ -50,8 +50,8 @@ class MobilerakerCompanion:
         self.remote_config = CompanionRemoteConfig()
         self.logger = logging.getLogger('mobileraker')
         self._last_snapshot: Optional[PrinterSnapshot] = None
-        self._evaulate_noti_task: Optional[Task] = None
-        self._evaulate_m117_task: Optional[Task] = None
+        self._evaulate_noti_lock: Lock = Lock()
+        self._evaulate_m117_lock: Lock = Lock()
         coloredlogs.install(
             logger=self.logger, fmt=f'%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s [{self.printer_name}] %(message)s')
 
@@ -227,73 +227,70 @@ class MobilerakerCompanion:
 
     # Calculate if it should push a new notification!
     async def task_evaluate_notification(self, force: bool = False) -> None:
-        if self._evaulate_noti_task is not None:
-            await asyncio.wait_for(self._evaulate_noti_task, timeout=None)
-        self._evaulate_noti_task = asyncio.current_task()
-
-        if not self.init_done and not force:
-            return
-        snapshot = self._take_snapshot()
-
-        # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
-
-        if self._last_snapshot is not None:
-            if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
-                    (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
+        async with self._evaulate_noti_lock:
+            if not self.init_done and not force:
                 return
-        self._last_snapshot = snapshot
+            snapshot = self._take_snapshot()
 
-        dtos = []
-        cfgs = await self.fetch_fcm_cfgs()
-        #self.logger.info(f'Yes i am here! - {snapshot.progress}')
-        self.logger.info(f'Got configs: {cfgs}')
-        for c in cfgs:
-            self.logger.info(
-                f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
-            notifications = []
-            if not c.fcm_token:
-                continue
+            # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
 
-            state_noti = self._state_notification(c, snapshot)
-            if state_noti is not None:
-                notifications.append(state_noti)
+            if self._last_snapshot is not None:
+                if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
+                        (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
+                    return
+            self._last_snapshot = snapshot
+
+            dtos = []
+            cfgs = await self.fetch_fcm_cfgs()
+            #self.logger.info(f'Yes i am here! - {snapshot.progress}')
+            self.logger.info(f'Got configs: {cfgs}')
+            for c in cfgs:
                 self.logger.info(
-                    f'StateNoti: {state_noti.title} - {state_noti.body}')
+                    f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
+                notifications = []
+                if not c.fcm_token:
+                    continue
 
-            progress_noti = self._progress_notification(
-                c, snapshot)
-            if progress_noti is not None:
-                notifications.append(progress_noti)
+                state_noti = self._state_notification(c, snapshot)
+                if state_noti is not None:
+                    notifications.append(state_noti)
+                    self.logger.info(
+                        f'StateNoti: {state_noti.title} - {state_noti.body}')
+
+                progress_noti = self._progress_notification(
+                    c, snapshot)
+                if progress_noti is not None:
+                    notifications.append(progress_noti)
+                    self.logger.info(
+                        f'ProgressNoti: {progress_noti.title} - {progress_noti.body}')
+
+                self.logger.debug(
+                    f'Notifications for {c.fcm_token}: {notifications}')
+
                 self.logger.info(
-                    f'ProgressNoti: {progress_noti.title} - {progress_noti.body}')
+                    f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
+                if notifications:
+                    noti_snap = NotificationSnap()
+                    # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
+                    noti_snap.progress = 0 if snapshot.print_state != 'printing' and snapshot.print_state != 'paused' else c.snap.progress \
+                        if progress_noti is None else snapshot.progress - (snapshot.progress % c.settings.progress_config) if snapshot.progress is not None else 0
+                    noti_snap.state = snapshot.print_state
 
-            self.logger.debug(
-                f'Notifications for {c.fcm_token}: {notifications}')
+                    await self.update_snap_in_fcm_cfg(c.machine_id, noti_snap)
+                    dto = DeviceRequestDto(
+                        printer_id=c.machine_id,
+                        token=c.fcm_token,
+                        notifcations=notifications
+                    )
+                    dtos.append(dto)
+                    #self.logger.info(f'Dto: {dto.toJSON()}')
+            # just ensure the next update is in 5% steps at least!
+            if snapshot.progress is not None:
+                snapshot.progress = snapshot.progress - \
+                    (snapshot.progress % self.remote_config.increments)
 
-            self.logger.info(
-                f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
-            if notifications:
-                noti_snap = NotificationSnap()
-                # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
-                noti_snap.progress = 0 if snapshot.print_state != 'printing' and snapshot.print_state != 'paused' else c.snap.progress \
-                    if progress_noti is None else snapshot.progress - (snapshot.progress % c.settings.progress_config) if snapshot.progress is not None else 0
-                noti_snap.state = snapshot.print_state
-
-                await self.update_snap_in_fcm_cfg(c.machine_id, noti_snap)
-                dto = DeviceRequestDto(
-                    printer_id=c.machine_id,
-                    token=c.fcm_token,
-                    notifcations=notifications
-                )
-                dtos.append(dto)
-                #self.logger.info(f'Dto: {dto.toJSON()}')
-        # just ensure the next update is in 5% steps at least!
-        if snapshot.progress is not None:
-            snapshot.progress = snapshot.progress - \
-                (snapshot.progress % self.remote_config.increments)
-
-        await self._push_and_clear_faulty(dtos)
-        self.logger.info('---- Done wiht evaluate notification Task! ----')
+            await self._push_and_clear_faulty(dtos)
+            self.logger.info('---- Done wiht evaluate notification Task! ----')
 
     def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
 
@@ -368,34 +365,31 @@ class MobilerakerCompanion:
             self.task_evaluate_m117_notification())
 
     async def task_evaluate_m117_notification(self):
-        if self._evaulate_m117_task is not None:
-            await asyncio.wait_for(self._evaulate_m117_task, timeout=None)
-        self._evaulate_m117_task = asyncio.current_task()
+        async with self._evaulate_m117_lock:
+            if not self.init_done:
+                return
+            self.logger.info('Evaluating m117 notifications!')
+            dtos = []
+            snapshot = self._take_snapshot()
+            cfgs = await self.fetch_fcm_cfgs()
 
-        if not self.init_done:
-            return
-        self.logger.info('Evaluating m117 notifications!')
-        dtos = []
-        snapshot = self._take_snapshot()
-        cfgs = await self.fetch_fcm_cfgs()
+            for c in cfgs:
+                if not c.fcm_token:
+                    continue
+                notification = self._m117_notification(c, snapshot)
+                if c.snap.m117 != snapshot.m117_hash:
+                    await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
 
-        for c in cfgs:
-            if not c.fcm_token:
-                continue
-            notification = self._m117_notification(c, snapshot)
-            if c.snap.m117 != snapshot.m117_hash:
-                await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
+                if notification is None:
+                    continue
 
-            if notification is None:
-                continue
-
-            dto = DeviceRequestDto(
-                printer_id=c.machine_id,
-                token=c.fcm_token,
-                notifcations=[notification]
-            )
-            dtos.append(dto)
-        await self._push_and_clear_faulty(dtos)
+                dto = DeviceRequestDto(
+                    printer_id=c.machine_id,
+                    token=c.fcm_token,
+                    notifcations=[notification]
+                )
+                dtos.append(dto)
+            await self._push_and_clear_faulty(dtos)
 
     def _m117_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
         # skip if m117 is empty/none
@@ -420,7 +414,8 @@ class MobilerakerCompanion:
 
         title = split[0] if has_title else translate(cfg.language,
                                                      'm117_custom_title')
-        title = replace_placeholders(title, cfg, cur_snap, self.companion_config)
+        title = replace_placeholders(
+            title, cfg, cur_snap, self.companion_config)
         body = split[1] if has_title else split[0]
         body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
 
