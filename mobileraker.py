@@ -209,6 +209,7 @@ class MobilerakerCompanion:
                 cfg = DeviceNotificationEntry.fromJSON(deviceJson)
                 cfgs.append(cfg)
 
+        self.logger.info('Got Cfgs!')
         return cfgs
 
     async def fetch_printer_id(self) -> Optional[str]:
@@ -227,9 +228,9 @@ class MobilerakerCompanion:
 
     # Calculate if it should push a new notification!
     async def task_evaluate_notification(self, force: bool = False) -> None:
+        if not self.init_done and not force:
+            return
         async with self._evaulate_noti_lock:
-            if not self.init_done and not force:
-                return
             snapshot = self._take_snapshot()
 
             # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
@@ -354,7 +355,7 @@ class MobilerakerCompanion:
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
         if dtos:
             request = FcmRequestDto(dtos)
-            faulty_tokens = await self._fcm_client.push(request)
+            response = self._fcm_client.push(request)
             # todo: remove faulty token lol
 
     def evaluate_m117(self) -> None:
@@ -365,9 +366,9 @@ class MobilerakerCompanion:
             self.task_evaluate_m117_notification())
 
     async def task_evaluate_m117_notification(self):
+        if not self.init_done:
+            return
         async with self._evaulate_m117_lock:
-            if not self.init_done:
-                return
             self.logger.info('Evaluating m117 notifications!')
             dtos = []
             snapshot = self._take_snapshot()
