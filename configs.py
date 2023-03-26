@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, Optional, Union
 
 import pytz
+import tzlocal
 
 user_dir = os.path.expanduser("~/")
 companion_dir = pathlib.Path(__file__).parent.resolve()
@@ -56,10 +57,11 @@ class CompanionLocalConfig:
             }
         logging.info("Read %i printer config sections" % len(self.printers))
 
+
         self.language: str = self.config.get(
             'general', 'language', fallback='en')
         self.timezone_str: str = self.config.get(
-            'general', 'timezone', fallback=time.tzname[0])  # fallback to system timezone (Hopefully)
+            'general', 'timezone', fallback=tzlocal.get_localzone_name())  # fallback to system timezone (Hopefully)
         self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str)
         self.eta_format: str = self.config.get(
             'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')
