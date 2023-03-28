@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
-from configs import CompanionLocalConfig
+from util.configs import CompanionLocalConfig
 from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
-from printer_snapshot import PrinterSnapshot
+from dtos.moonraker.printer_snapshot import PrinterSnapshot
 
 
 def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig) -> str:

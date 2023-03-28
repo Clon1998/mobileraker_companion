@@ -1,10 +1,10 @@
 
 from typing import Dict
-from configs import CompanionLocalConfig
+from util.configs import CompanionLocalConfig
 
 from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
-from notification_placeholders import replace_placeholders
-from printer_snapshot import PrinterSnapshot
+from util.notification_placeholders import replace_placeholders
+from dtos.moonraker.printer_snapshot import PrinterSnapshot
 
 # List of available tokens
 # printer_name - The name of the printer

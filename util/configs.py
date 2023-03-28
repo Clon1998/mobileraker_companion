@@ -10,7 +10,7 @@ import pytz
 import tzlocal
 
 user_dir = os.path.expanduser("~/")
-companion_dir = pathlib.Path(__file__).parent.resolve()
+companion_dir = pathlib.Path(__file__).parent.parent.resolve()
 klipper_config_dir = os.path.join(
     user_dir, "klipper_config")
 printer_data_config_dir = os.path.join(

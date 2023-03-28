@@ -9,19 +9,19 @@ from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
 
-from configs import CompanionLocalConfig, CompanionRemoteConfig
+from util.configs import CompanionLocalConfig, CompanionRemoteConfig
 from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
                                                     FcmRequestDto,
                                                     NotificationContentDto)
 from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
                                                       NotificationSnap)
-from dtos.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
+from dtos.moonraker.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
                                   VirtualSDCard)
-from i18n import (replace_placeholders, translate,
+from util.i18n import (replace_placeholders, translate,
                   translate_replace_placeholders)
 from mobileraker_fcm import MobilerakerFcmClient
 from moonraker_client import MoonrakerClient
-from printer_snapshot import PrinterSnapshot
+from dtos.moonraker.printer_snapshot import PrinterSnapshot
 
 
 class MobilerakerCompanion:
