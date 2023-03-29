@@ -32,9 +32,9 @@ install_script()
 {
 if [ -z "$LOG_PATH" ]
 then
-    CMD = "${LAUNCH_CMD} -l ${LOG_PATH}"
+    CMD="${LAUNCH_CMD} -l ${LOG_PATH}"
 else
-    CMD = "${LAUNCH_CMD}"
+    CMD="${LAUNCH_CMD}"
 fi
 # Create systemd service file
     SERVICE_FILE="${SYSTEMDDIR}/mobileraker.service"
@@ -53,7 +53,7 @@ WantedBy=multi-user.target
 Type=simple
 User=$USER
 WorkingDirectory=${SRCDIR}
-ExecStart=${CMD}
+ExecStart=${LAUNCH_CMD} -l ${LOG_PATH}
 Restart=always
 RestartSec=10
 EOF
