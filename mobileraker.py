@@ -441,7 +441,7 @@ def main() -> None:
         "-c", "--configfile", default="~/Mobileraker.conf", metavar='<configfile>',
         help="Location of the configuration file for Mobileraker Companion"
     )
-
+    
     cmd_line_args = parser.parse_args()
 
     version = get_software_version()
