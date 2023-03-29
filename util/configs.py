@@ -9,13 +9,15 @@ from typing import Any, Dict, Optional, Union
 import pytz
 import tzlocal
 
-user_dir = os.path.expanduser("~/")
+home_dir = os.path.expanduser("~/")
 companion_dir = pathlib.Path(__file__).parent.parent.resolve()
 klipper_config_dir = os.path.join(
-    user_dir, "klipper_config")
+    home_dir, "klipper_config")
 printer_data_config_dir = os.path.join(
-    user_dir, "printer_data", "config")
+    home_dir, "printer_data", "config")
 
+printer_data_logs_dir = os.path.join(
+    home_dir, "printer_data", "logs")
 
 class CompanionRemoteConfig:
 
@@ -111,4 +113,4 @@ class CompanionLocalConfig:
     # Check user-dir -> ~/Mobileraker.conf
     def __check_user_dir(self) -> Optional[str]:
         logging.info("Checking user dir")
-        return self.__check_file_exists(user_dir, self.default_file_name)
+        return self.__check_file_exists(home_dir, self.default_file_name)

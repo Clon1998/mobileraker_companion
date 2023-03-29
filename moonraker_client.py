@@ -4,7 +4,7 @@ import logging
 import random
 from asyncio import AbstractEventLoop, Future, Task
 from typing import Any, Callable, Dict, List, Optional, cast
-import coloredlogs
+
 
 from websockets import client, exceptions, typing
 
@@ -140,7 +140,6 @@ class MoonrakerClient:
 
 
 
-coloredlogs.install(level=logging.INFO)
 
 if __name__ == '__main__':
     event_loop = asyncio.get_event_loop()

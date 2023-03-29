@@ -9,19 +9,21 @@ from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
 
-from util.configs import CompanionLocalConfig, CompanionRemoteConfig
+from util.configs import CompanionLocalConfig, CompanionRemoteConfig, printer_data_logs_dir
 from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
                                                     FcmRequestDto,
                                                     NotificationContentDto)
 from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
                                                       NotificationSnap)
 from dtos.moonraker.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
-                                  VirtualSDCard)
+                                            VirtualSDCard)
+from util.functions import get_software_version
 from util.i18n import (replace_placeholders, translate,
-                  translate_replace_placeholders)
+                       translate_replace_placeholders)
 from mobileraker_fcm import MobilerakerFcmClient
 from moonraker_client import MoonrakerClient
 from dtos.moonraker.printer_snapshot import PrinterSnapshot
+from util.logging import setup_logging
 
 
 class MobilerakerCompanion:
@@ -48,13 +50,11 @@ class MobilerakerCompanion:
         self.last_request: Optional[DeviceRequestDto] = None
         # TODO: Fetch this from a remote server for easier configuration :)
         self.remote_config = CompanionRemoteConfig()
-        self.logger = logging.getLogger('mobileraker')
+        self.logger = logging.getLogger(f'mobileraker.{printer_name.replace(".","_")}')
         self._last_snapshot: Optional[PrinterSnapshot] = None
         self._evaulate_noti_lock: Lock = Lock()
         self._evaulate_m117_lock: Lock = Lock()
-        coloredlogs.install(
-            logger=self.logger, fmt=f'%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s [{self.printer_name}] %(message)s')
-
+        
         self._jrpc.register_method_listener(
             'notify_status_update', lambda resp: self.loop.create_task(self._parse_notify_status_update(resp["params"][0])))
 
@@ -430,8 +430,9 @@ class MobilerakerCompanion:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Mobileraker - Companion")
+
     parser.add_argument(
-        "-l", "--logfile", default="/tmp/mobileraker.log", metavar='<logfile>',
+        "-l", "--logfile", default=os.path.join(printer_data_logs_dir if os.path.exists(printer_data_logs_dir) else '/tmp', "mobileraker.log"), metavar='<logfile>',
         help="log file name and location")
     parser.add_argument(
         "-n", "--nologfile", action='store_true',
@@ -443,17 +444,12 @@ def main() -> None:
 
     cmd_line_args = parser.parse_args()
 
-    if cmd_line_args.nologfile:
-        log_file = ""
-    elif cmd_line_args.logfile:
-        log_file = os.path.normpath(
-            os.path.expanduser(cmd_line_args.logfile))
-        fh = RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=5)
-        formatter = logging.Formatter(
-            '%(asctime)s [%(filename)s:%(funcName)s()] - %(message)s')
-        fh.setFormatter(formatter)
-        root_logger = logging.getLogger()
-        root_logger.addHandler(fh)
+    version = get_software_version()
+    if not cmd_line_args.nologfile:
+        setup_logging(os.path.normpath(os.path.expanduser(
+            cmd_line_args.logfile)), version)
+
+    logging.info(f"MobilerakerCompanion version: {version}")
 
     configfile = os.path.normpath(os.path.expanduser(cmd_line_args.configfile))
 
@@ -487,7 +483,5 @@ def main() -> None:
         event_loop.close()
     exit()
 
-
-coloredlogs.install(level=logging.INFO)
 if __name__ == '__main__':
     main()
