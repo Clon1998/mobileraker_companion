@@ -30,6 +30,12 @@ create_virtualenv()
 
 install_script()
 {
+if [ -z "$LOG_PATH" ]
+then
+    CMD = "${LAUNCH_CMD} -l ${LOG_PATH}"
+else
+    CMD = "${LAUNCH_CMD}"
+fi
 # Create systemd service file
     SERVICE_FILE="${SYSTEMDDIR}/mobileraker.service"
     [ -f $SERVICE_FILE ] && [ $FORCE_DEFAULTS = "n" ] && return
@@ -47,7 +53,7 @@ WantedBy=multi-user.target
 Type=simple
 User=$USER
 WorkingDirectory=${SRCDIR}
-ExecStart=${LAUNCH_CMD} -l ${LOG_PATH}
+ExecStart=${CMD}
 Restart=always
 RestartSec=10
 EOF
