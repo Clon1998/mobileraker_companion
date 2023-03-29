@@ -105,10 +105,11 @@ To construct a new noticiation it follows the following schema:
 
 ## Changelog
 
-### [v0.3.0] - 2023-01-xx
+### [v0.3.0] - 2023-03-29
 
 - Added support for the new notification architecture of mobileraker v2.1.0
 - Added support for custom `M117` notifications see [Custom Notification](docs/Custom_Notifications.md) documentation
+- Moved logs to klipper's printer_dir/logs
 
 ### [v0.2.1] - 2022-07-07
 
