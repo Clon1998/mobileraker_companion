@@ -53,8 +53,8 @@ WantedBy=multi-user.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=${SRCDIR}
-ExecStart=${CMD}
+WorkingDirectory=$SRCDIR
+ExecStart=$CMD
 Restart=always
 RestartSec=10
 EOF
