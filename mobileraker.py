@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import datetime
 import hashlib
 import logging
 import os
@@ -17,7 +18,7 @@ from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
                                                       NotificationSnap)
 from dtos.moonraker.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
                                             VirtualSDCard)
-from util.functions import get_software_version
+from util.functions import get_software_version, is_valid_uuid
 from util.i18n import (replace_placeholders, translate,
                        translate_replace_placeholders)
 from mobileraker_fcm import MobilerakerFcmClient
@@ -50,11 +51,12 @@ class MobilerakerCompanion:
         self.last_request: Optional[DeviceRequestDto] = None
         # TODO: Fetch this from a remote server for easier configuration :)
         self.remote_config = CompanionRemoteConfig()
-        self.logger = logging.getLogger(f'mobileraker.{printer_name.replace(".","_")}')
+        self.logger = logging.getLogger(
+            f'mobileraker.{printer_name.replace(".","_")}')
         self._last_snapshot: Optional[PrinterSnapshot] = None
         self._evaulate_noti_lock: Lock = Lock()
         self._evaulate_m117_lock: Lock = Lock()
-        
+
         self._jrpc.register_method_listener(
             'notify_status_update', lambda resp: self.loop.create_task(self._parse_notify_status_update(resp["params"][0])))
 
@@ -68,10 +70,10 @@ class MobilerakerCompanion:
             'notify_klippy_disconnected', lambda resp: self._on_klippy_disconnected())
 
     async def connect(self) -> None:
-        await self._jrpc.connect(lambda: self.loop.create_task(self._init_printer_objects()))
+        await self._jrpc.connect(lambda: self.loop.create_task(self._init_client()))
 
-    async def _init_printer_objects(self, no_try: int = 0) -> None:
-        self.logger.info("Fetching printer Objects Try#%i" % no_try)
+    async def _init_client(self, no_try: int = 0) -> None:
+        self.logger.info("Client init started... Try#%i" % no_try)
         response, err = await self._jrpc.send_and_receive_method("server.info")
         self._parse_server_info(response, err)
         self.klippy_ready = self.server_info.klippy_state == 'ready'
@@ -80,6 +82,7 @@ class MobilerakerCompanion:
 
             if not self.init_done:
                 self.init_done = True
+                await self._write_meta_into_db()
                 self.logger.debug('Src: INIT_DONE')
                 self.evaluate_notification()
             await self._subscribe_to_object_notifications()
@@ -89,7 +92,15 @@ class MobilerakerCompanion:
                 "Klippy was not ready. Trying again in %i seconds..." % wait_for)
             await asyncio.sleep(wait_for)
             self.loop.create_task(
-                self._init_printer_objects(no_try=no_try + 1))
+                self._init_client(no_try=no_try + 1))
+
+    async def _write_meta_into_db(self):
+        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
+                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": {"last_seen": datetime.datetime.now().isoformat(), "version": get_software_version()}})
+        if err:
+            self.logger.warn("Could not write version into moonraker DB")
+        else:
+            self.logger.info("Wrote version into database")
 
     async def _parse_objects_response(self, message: Dict[str, Any], err=None):
         self.logger.debug("Received objects response %s" % message)
@@ -150,7 +161,7 @@ class MobilerakerCompanion:
 
     def _on_klippy_ready(self):
         self.logger.info("Klippy has reported a ready state")
-        self.loop.create_task(self._init_printer_objects())
+        self.loop.create_task(self._init_client())
 
     def _on_klippy_shutdown(self):
         self.logger.info("Klippy has reported a shutdown state")
@@ -201,6 +212,9 @@ class MobilerakerCompanion:
         if not err:
             rawCfg = response["result"]["value"]
             for entry_id in rawCfg:
+                if not is_valid_uuid(entry_id):
+                    continue
+
                 deviceJson = rawCfg[entry_id]
                 if ('fcmToken' not in deviceJson):
                     await self.remove_old_fcm_cfg(entry_id)
@@ -441,7 +455,7 @@ def main() -> None:
         "-c", "--configfile", default="~/Mobileraker.conf", metavar='<configfile>',
         help="Location of the configuration file for Mobileraker Companion"
     )
-    
+
     cmd_line_args = parser.parse_args()
 
     version = get_software_version()
@@ -482,6 +496,7 @@ def main() -> None:
     finally:
         event_loop.close()
     exit()
+
 
 if __name__ == '__main__':
     main()
