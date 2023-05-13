@@ -96,7 +96,7 @@ class MobilerakerCompanion:
 
     async def _write_meta_into_db(self):
         response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": {"last_seen": datetime.datetime.now().isoformat(), "version": get_software_version()}})
+                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": {"lastSeen": datetime.datetime.now().isoformat(), "version": get_software_version()}})
         if err:
             self.logger.warn("Could not write version into moonraker DB")
         else:
