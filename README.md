@@ -35,6 +35,13 @@ eta_format: %%d.%%m.%%Y, %%H:%%M:%%S
 # Note that you will have to escape the % char by using a 2nd one e.g.: %d/%m/%Y -> %%d/%%m/%%Y
 # Default: %%d.%%m.%%Y, %%H:%%M:%%S
 # Optional
+include_snapshot: True
+# !! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!
+# Include a snapshot of the webcam in any print status/progress update notifications
+# Default: True
+# Optional
+
+
 
 # Add a [printer ...] section for every printer you want to add
 [printer <NAME OF YOUR PRINTER: optional>]
@@ -46,6 +53,16 @@ moonraker_api_key: False
 # Moonraker API key if force_logins or trusted clients is active!
 # Default value: False
 # Optional
+snapshot_uri: http://127.0.0.1/webcam/?action=snapshot
+# !! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!
+# The ABSOLUT url to the webcam, the companion should make a screenshot of. 
+# Default: 
+# Optional
+snapshot_rotation: 0
+# The rotation tapplied to the image. Valid values : 0, 90, 180, 270
+# Default: 0
+# Optional
+
 ```
 
 By default the companion searches for a `Mobileraker.conf` file in:

@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import base64
 import datetime
 import hashlib
 import logging
@@ -10,6 +11,7 @@ from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
 from dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
+from snapshot_client import SnapshotClient
 
 from util.configs import CompanionLocalConfig, CompanionRemoteConfig, printer_data_logs_dir
 from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
@@ -33,6 +35,7 @@ class MobilerakerCompanion:
             self,
             jrpc: MoonrakerClient,
             fcm_client: MobilerakerFcmClient,
+            snapshot_client: SnapshotClient,
             printer_name: str,
             loop: AbstractEventLoop,
             companion_config: CompanionLocalConfig
@@ -40,6 +43,7 @@ class MobilerakerCompanion:
         super().__init__()
         self._jrpc: MoonrakerClient = jrpc
         self._fcm_client: MobilerakerFcmClient = fcm_client
+        self._snapshot_client: SnapshotClient = snapshot_client
         self.printer_name: str = printer_name
         self.loop: AbstractEventLoop = loop
         self.companion_config: CompanionLocalConfig = companion_config
@@ -188,6 +192,7 @@ class MobilerakerCompanion:
             snapshot.progress = round(self.virtual_sdcard.progress*100)
             snapshot.printing_duration = self.print_stats.print_duration
         return snapshot
+    
 
     async def update_snap_in_fcm_cfg(self, machine_id: str, notification_snap: NotificationSnap) -> None:
         self.logger.info(
@@ -342,7 +347,7 @@ class MobilerakerCompanion:
 
         body = translate_replace_placeholders(
             body, cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
+        return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body, self._take_image())
 
     def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
 
@@ -366,13 +371,21 @@ class MobilerakerCompanion:
             'print_progress_title', cfg, cur_snap, self.companion_config)
         body = translate_replace_placeholders(
             'print_progress_body', cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
+        return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body, self._take_image())
 
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
         if dtos:
             request = FcmRequestDto(dtos)
             response = self._fcm_client.push(request)
             # todo: remove faulty token lol
+
+    def _take_image(self) -> Optional[str]:
+        img_encoded = None
+        if self.companion_config.include_snapshot:
+            bytes = self._snapshot_client.takeSnapshot()
+            if bytes is not None:
+                img_encoded = base64.b64encode(bytes).decode("ascii")
+        return img_encoded
 
     def evaluate_m117(self) -> None:
         if not self.init_done:
@@ -440,7 +453,7 @@ class MobilerakerCompanion:
             f'Got M117/Custom: {msg}: {title} - {body}')
 
         return NotificationContentDto(333, f'{cfg.machine_id}-m117',
-                                      title, body)
+                                      title, body, self._take_image())
 
 
 def main() -> None:
@@ -485,10 +498,15 @@ def main() -> None:
                 # 'http://127.0.0.1:8080',
                 'https://mobileraker.eliteschw31n.de',
                 event_loop)
+            snc = SnapshotClient(
+                p_config['snapshot_uri'],
+                p_config['snapshot_rotation'],
+            )
 
             client = MobilerakerCompanion(
                 jrpc=jrpc,
                 fcm_client=fcmc,
+                snapshot_client=snc,
                 printer_name=printer_name,
                 loop=event_loop,
                 companion_config=local_config)

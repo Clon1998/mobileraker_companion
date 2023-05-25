@@ -4,22 +4,29 @@ from typing import Any, Dict, List, Optional
 class NotificationContentDto:
     def __init__(self,
                  id: int,
-                 channel:str,
+                 channel: str,
                  title: str,
                  body: str,
+                 image: Optional[str] = None,
                  ):
         self.id: int = id
         self.channel: str = channel
         self.title: str = title
         self.body: str = body
+        self.image: Optional[str] = image
 
     def toJSON(self) -> Dict[str, Any]:
-        return {
+        json = {
             "id": self.id,
             "channel": self.channel,
             "title": self.title,
             "body": self.body,
         }
+
+        if self.image is not None:
+            json['image'] = self.image
+
+        return json
 
 
 class DeviceRequestDto:
@@ -59,7 +66,7 @@ class FcmRequestDto:
                  ):
         self.device_requests: List[DeviceRequestDto] = device_requests
 
-    def toJSON(self) ->  Dict[str, Any]:
+    def toJSON(self) -> Dict[str, Any]:
         dtos = []
         for n in self.device_requests:
             dtos.append(n.toJSON())

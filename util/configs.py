@@ -19,6 +19,7 @@ printer_data_config_dir = os.path.join(
 printer_data_logs_dir = os.path.join(
     home_dir, "printer_data", "logs")
 
+
 class CompanionRemoteConfig:
 
     def __init__(self) -> None:
@@ -47,18 +48,27 @@ class CompanionLocalConfig:
         for printer in printer_sections:
             api_key = self.config.get(
                 printer, "moonraker_api_key", fallback=None)
+
+            rotation = self.config.getint(
+                printer, "snapshot_rotation", fallback=0)
+            if rotation not in [0, 90, 180, 270]:
+                rotation = 0
+
             self.printers[printer[8:]] = {
                 "moonraker_uri": self.config.get(printer, "moonraker_uri", fallback="ws://127.0.0.1:7125/websocket"),
                 "moonraker_api_key": None if api_key == 'False' or not api_key else api_key,
+                "snapshot_uri": self.config.get(printer, "snapshot_uri", fallback="http://127.0.0.1/webcam/?action=snapshot"),
+                "snapshot_rotation": rotation
             }
 
         if len(self.printers) <= 0:
             self.printers['_Default'] = {
                 "moonraker_uri": "ws://127.0.0.1:7125/websocket",
                 "moonraker_api_key": None,
+                "snapshot_uri": "http://127.0.0.1/webcam/?action=snapshot",
+                "snapshot_rotation": 0
             }
         logging.info("Read %i printer config sections" % len(self.printers))
-
 
         self.language: str = self.config.get(
             'general', 'language', fallback='en')
@@ -67,15 +77,17 @@ class CompanionLocalConfig:
         self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str)
         self.eta_format: str = self.config.get(
             'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')
+        self.include_snapshot: bool = self.config.getboolean(
+            'general', 'include_snapshot', fallback=True)
+
         logging.info(
-            f'Main section read, language:"{self.language}", timezone:"{self.timezone_str}", eta_format:"{self.eta_format}"')
+            f'Main section read, language:"{self.language}", timezone:"{self.timezone_str}", eta_format:"{self.eta_format}", include_snapshot:"{self.include_snapshot}"')
 
     def get_config_file_location(self, passed_config: str) -> Optional[str]:
         logging.info("Passed config file is: %s" % passed_config)
 
         foundFile = passed_config if os.path.exists(passed_config) else self.__check_companion_dir() or self.__check_klipper_config_dir(
-            ) or self.__check_printer_data_config_dir() or self.__check_user_dir()
-
+        ) or self.__check_printer_data_config_dir() or self.__check_user_dir()
 
         if foundFile and os.path.exists(foundFile):
             logging.info("Found configuration file at: %s" %

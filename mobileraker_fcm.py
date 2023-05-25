@@ -21,11 +21,11 @@ class MobilerakerFcmClient:
     def push(self, request: FcmRequestDto,) -> Optional[requests.Response]:
         jsons = request.toJSON()
 
-        self.logger.info(
+        self.logger.debug(
             f"Sending to firebase fcm ({self.fcm_uri}): {jsons}")
         try:
             res = requests.post(
-                f'{self.fcm_uri}/companion/v2/update', json=jsons, timeout=5)
+                f'{self.fcm_uri}/companion/v2/update', json=jsons, timeout=60)
             res.raise_for_status()
             return res
         except requests.exceptions.ConnectionError as err:
