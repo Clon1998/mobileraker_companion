@@ -9,6 +9,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Any, Dict, List, Optional, cast
 
 import coloredlogs
+from dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
 
 from util.configs import CompanionLocalConfig, CompanionRemoteConfig, printer_data_logs_dir
 from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
@@ -95,8 +96,9 @@ class MobilerakerCompanion:
                 self._init_client(no_try=no_try + 1))
 
     async def _write_meta_into_db(self):
+        client_info = CompanionMetaDataDto(version=get_software_version())
         response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": {"lastSeen": datetime.datetime.now().isoformat(), "version": get_software_version()}})
+                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": client_info.toJSON()})
         if err:
             self.logger.warn("Could not write version into moonraker DB")
         else:
