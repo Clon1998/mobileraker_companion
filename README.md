@@ -16,6 +16,24 @@ cd mobileraker_companion
 ./scripts/install-mobileraker-companion.sh
 ```
 
+### Run the Companion in Docker
+Create a mobileraker.conf and run the following command
+```
+docker run -d \
+    -n mobileraker_companion
+    -v /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf
+    ghcr.io/Clon1998/mobileraker_companion:latest
+```
+
+or via docker compose:
+```yaml
+services:
+  mobileraker_companion:
+    image: ghcr.io/Clon1998/mobileraker_companion:latest
+    volumes:
+    - /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf
+```
+
 ## Companion - Config
 By default you should not need to create a config file. However, in case you want to use multiple printers with a single companion instance, enforce logins via moonraker or want to change some of the notification behavior here is a overview of the available sections and configs:
 
