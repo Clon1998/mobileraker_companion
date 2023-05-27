@@ -27,6 +27,7 @@ remove_script()
 	sudo rm $SERVICE_FILE 
 
     sudo systemctl daemon-reload
+    sudo systemctl reset-failed
 }
 
 report_status()
