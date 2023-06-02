@@ -11,7 +11,9 @@ RUN python -m venv venv \
 FROM python:3-slim
 
 RUN apt update \
- && apt install -y git \
+ && apt install -y \
+      git \
+      libjpeg62-turbo \
  && apt clean
 
 WORKDIR /opt

@@ -10,6 +10,12 @@ SYSTEMDDIR="/etc/systemd/system"
 
 MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 
+install_dependencies()
+{
+    apt update
+    apt install -y git libjpeg62-turbo
+}
+
 create_virtualenv()
 {
     report_status "Installing python virtual environment..."
@@ -116,6 +122,7 @@ done
 
 # Run installation steps defined above
 verify_ready
+install_dependencies
 create_virtualenv
 install_script
 add_to_asvc
