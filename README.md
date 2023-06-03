@@ -7,12 +7,36 @@
 
 Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling push notification for [Klipper](https://github.com/Klipper3d/klipper) using [Moonraker](https://github.com/arksine/moonraker).
 
+## Table of Contents
+- [mobileraker\_companion](#mobileraker_companion)
+  - [Table of Contents](#table-of-contents)
+  - [Companion - Installation](#companion---installation)
+  - [Companion - Config](#companion---config)
+  - [Moonraker - Update manager](#moonraker---update-manager)
+  - [How it works](#how-it-works)
+    - [Visualization of the architecture](#visualization-of-the-architecture)
+  - [Changelog](#changelog)
+    - [\[v0.3.0\] - 2023-03-29](#v030---2023-03-29)
+    - [\[v0.2.1\] - 2022-07-07](#v021---2022-07-07)
+
 ## Companion - Installation
-Execute the following commands:
-```
+To install the Companion, follow these steps:
+
+1. Open a terminal or establish an SSH connection on the host running Klipper.
+2. Change the directory to your home directory by running the following command:
+```bash
 cd ~/
+```
+1. Clone the Companion repository by executing the following command:
+```bash
 git clone https://github.com/Clon1998/mobileraker_companion.git
+```
+1. Navigate to the mobileraker_companion directory:
+```bash
 cd mobileraker_companion
+```
+1. Run the installation script to set up the Companion:
+```bash
 ./scripts/install-mobileraker-companion.sh
 ```
 
@@ -35,7 +59,7 @@ services:
 ```
 
 ## Companion - Config
-By default you should not need to create a config file. However, in case you want to use multiple printers with a single companion instance, enforce logins via moonraker or want to change some of the notification behavior here is a overview of the available sections and configs:
+By default, you don't need to create a config file. However, if you want to use multiple printers with a single Companion instance, enforce logins via Moonraker, or modify the notification behavior, you can customize the configuration. Below is an overview of the available sections and configurations
 
 ```properties
 [general]
@@ -83,14 +107,13 @@ snapshot_rotation: 0
 
 ```
 
-By default the companion searches for a `Mobileraker.conf` file in:
+The Companion searches for a `Mobileraker.conf` file in the following locations (in order of precedence):
 1. `~/Mobileraker.conf`
 2. `<mobileraker_companion DIR>/mobileraker.conf`
 3. `~/klipper_config/mobileraker.conf`
 
 
-A single companion instance can support multiple printers.
-Just add more printer sections to your config!
+A single Companion instance can support multiple printers. To configure multiple printers, add more `[printer ...]` sections to your config. Here's an example of a multi-printer config:
 Example multi-printer config: 
 ```properties
 [printer V2.1111]
@@ -108,8 +131,12 @@ moonraker_api_key: False
 # Moonraker API key if force_logins is active!
 ```
 
-> **_NOTE:_**  Please restart the system service to ensure the new config values are used!  
-> You can do that trough the `sudo systemctl restart mobileraker.service` terminal command.
+> **Note**  
+>   Please restart the system service to ensure the new config values are used. 
+> You can do this by running the following terminal command:  
+> ```bash
+> sudo systemctl restart mobileraker.service
+> ```
 
 
 ## Moonraker - Update manager
