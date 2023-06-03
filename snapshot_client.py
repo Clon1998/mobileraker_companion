@@ -24,15 +24,15 @@ class SnapshotClient:
         try:
             res = requests.get(self.uri, timeout=5)
             res.raise_for_status()
-            self.logger.info(
-                f"Took webcam snapshot! Converting using {self.rotation}")
+
             image = Image.open(BytesIO(res.content)).convert("RGB")
             image = image.rotate(self.rotation)
             buffered = BytesIO()
             image.save(buffered, format="JPEG")
-
+            self.logger.info(
+                f"Took webcam snapshot! Rotating it using rotation {self.rotation}°")
             return buffered.getvalue()
         except requests.exceptions.ConnectionError as err:
             self.logger.error("Could not connect to webcam!")
         except:
-            self.logger.error("Unable to process take snapshot request")
+            self.logger.error("Error while trying to process image request")

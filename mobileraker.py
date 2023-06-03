@@ -191,6 +191,7 @@ class MobilerakerCompanion:
         if self.print_stats.state == "printing":
             snapshot.progress = round(self.virtual_sdcard.progress*100)
             snapshot.printing_duration = self.print_stats.print_duration
+        self.logger.info(f'Took a PrinterSnapshot: {snapshot}')
         return snapshot
     
 
@@ -290,7 +291,7 @@ class MobilerakerCompanion:
                     f'Notifications for {c.fcm_token}: {notifications}')
 
                 self.logger.info(
-                    f'Notifications for machineID: {c.machine_id}:{len(notifications)}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
+                    f'{len(notifications)} Notifications for machineID: {c.machine_id}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
                 if notifications:
                     noti_snap = NotificationSnap()
                     # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
