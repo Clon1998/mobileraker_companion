@@ -8,13 +8,19 @@
 Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling push notification for [Klipper](https://github.com/Klipper3d/klipper) using [Moonraker](https://github.com/arksine/moonraker).
 
 ## Table of Contents
-- [Companion - Installation](#companion---installation)
-  - [Run the Companion in Docker](#run-the-companion-in-docker)
-- [Companion - Config](#companion---config)
-- [Moonraker - Update manager](#moonraker---update-manager)
-- [How it works](#how-it-works)
-  - [Visualization of the architecture](#visualization-of-the-architecture)
-- [Changelog](#changelog)
+- [mobileraker\_companion](#mobileraker_companion)
+  - [Table of Contents](#table-of-contents)
+  - [Companion - Installation](#companion---installation)
+    - [Quick install](#quick-install)
+    - [Kiauh](#kiauh)
+    - [Run the Companion in Docker](#run-the-companion-in-docker)
+  - [Companion - Config](#companion---config)
+  - [Moonraker - Update manager](#moonraker---update-manager)
+  - [How it works](#how-it-works)
+    - [Visualization of the architecture](#visualization-of-the-architecture)
+  - [Changelog](#changelog)
+    - [\[v0.3.0\] - 2023-03-29](#v030---2023-03-29)
+    - [\[v0.2.1\] - 2022-07-07](#v021---2022-07-07)
 ## Companion - Installation
 To install the Companion, follow these steps:
 
@@ -23,18 +29,29 @@ To install the Companion, follow these steps:
 ```bash
 cd ~/
 ```
-1. Clone the Companion repository by executing the following command:
+3. Clone the Companion repository by executing the following command:
 ```bash
 git clone https://github.com/Clon1998/mobileraker_companion.git
 ```
-1. Navigate to the mobileraker_companion directory:
+4. Navigate to the mobileraker_companion directory:
 ```bash
 cd mobileraker_companion
 ```
-1. Run the installation script to set up the Companion:
+5. Run the installation script to set up the Companion:
 ```bash
 ./scripts/install-mobileraker-companion.sh
 ```
+
+### Quick install
+```bash
+cd ~/
+git clone https://github.com/Clon1998/mobileraker_companion.git
+cd mobileraker_companion
+./scripts/install-mobileraker-companion.sh
+```
+
+### Kiauh
+> **WARNING**: Pending PR in Kiauh
 
 ### Run the Companion in Docker
 Create a mobileraker.conf and run the following command
