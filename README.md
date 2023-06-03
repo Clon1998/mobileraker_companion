@@ -8,18 +8,13 @@
 Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling push notification for [Klipper](https://github.com/Klipper3d/klipper) using [Moonraker](https://github.com/arksine/moonraker).
 
 ## Table of Contents
-- [mobileraker\_companion](#mobileraker_companion)
-  - [Table of Contents](#table-of-contents)
-  - [Companion - Installation](#companion---installation)
-    - [Run the Companion in Docker](#run-the-companion-in-docker)
-  - [Companion - Config](#companion---config)
-  - [Moonraker - Update manager](#moonraker---update-manager)
-  - [How it works](#how-it-works)
-    - [Visualization of the architecture](#visualization-of-the-architecture)
-  - [Changelog](#changelog)
-    - [\[v0.3.0\] - 2023-03-29](#v030---2023-03-29)
-    - [\[v0.2.1\] - 2022-07-07](#v021---2022-07-07)
-
+- [Companion - Installation](#companion---installation)
+  - [Run the Companion in Docker](#run-the-companion-in-docker)
+- [Companion - Config](#companion---config)
+- [Moonraker - Update manager](#moonraker---update-manager)
+- [How it works](#how-it-works)
+  - [Visualization of the architecture](#visualization-of-the-architecture)
+- [Changelog](#changelog)
 ## Companion - Installation
 To install the Companion, follow these steps:
 
