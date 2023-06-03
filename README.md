@@ -11,6 +11,7 @@ Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling p
 - [mobileraker\_companion](#mobileraker_companion)
   - [Table of Contents](#table-of-contents)
   - [Companion - Installation](#companion---installation)
+    - [Run the Companion in Docker](#run-the-companion-in-docker)
   - [Companion - Config](#companion---config)
   - [Moonraker - Update manager](#moonraker---update-manager)
   - [How it works](#how-it-works)
