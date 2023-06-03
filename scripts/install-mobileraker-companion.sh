@@ -12,8 +12,8 @@ MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 
 install_dependencies()
 {
-    apt update
-    apt install -y git libjpeg62-turbo
+    sudo apt update
+    sudo apt install -y git libjpeg62-turbo
 }
 
 create_virtualenv()
