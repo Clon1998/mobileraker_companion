@@ -13,7 +13,8 @@ FROM python:3-slim
 RUN apt update \
  && apt install -y \
       git \
-      libjpeg62-turbo \
+      zlib1g \
+      libtiff5 libjpeg62-turbo libopenjp2-7 \
  && apt clean
 
 WORKDIR /opt
