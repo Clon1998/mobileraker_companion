@@ -28,9 +28,9 @@ class MoonrakerClient:
         self._logger: logging.Logger = logging.getLogger('mobileraker.jrpc')
 
     async def connect(self, on_connected: Callable) -> None:
-        self._logger.info("Trying to connect to: %s api key %s" % (self.moonraker_uri,
+        self._logger.info("Trying to connect to: %s api key %s" , self.moonraker_uri,
                                                             '<NO API KEY>' if self.moonraker_api_key is None else self.moonraker_api_key[
-                                                                :6] + '##########################'))
+                                                                :6] + '##########################')
         async for websocket in client.connect(self.moonraker_uri,
                                               extra_headers=None if self.moonraker_api_key is None else [
                                                   ('X-Api-Key', self.moonraker_api_key)]):
@@ -56,7 +56,7 @@ class MoonrakerClient:
         if callback:
             self._req_cb[req_dict["id"]] = callback
 
-        self._logger.debug("Sending message %s" % message_json)
+        self._logger.debug("Sending message %s", message_json)
         await self._websocket.send(message_json)
         return req_dict["id"]
 
@@ -72,7 +72,7 @@ class MoonrakerClient:
         self._req_cb[m_id] = self._receive_blocking_cb
         self._req_blocking[m_id] = response_future
 
-        self._logger.debug("Sending message (Blocking) %s" % message_json)
+        self._logger.debug("Sending message (Blocking) %s", message_json)
         await self._websocket.send(message_json)
         return await response_future
 
@@ -94,7 +94,7 @@ class MoonrakerClient:
         mid = response.get("id")
         if "error" in response and "message" in response["error"]:
             self._logger.warning(
-                "Error message received from WebSocket-Server %s" % response["error"]["message"])
+                "Error message received from WebSocket-Server %s", response["error"]["message"])
             if mid and mid in self._req_cb:
                 await self._req_cb.pop(mid)(response, response["error"]["message"])
         else:
@@ -137,19 +137,3 @@ class MoonrakerClient:
             req["params"] = params
 
         return req
-
-
-
-
-if __name__ == '__main__':
-    event_loop = asyncio.get_event_loop()
-    try:
-
-        c = MoonrakerClient(
-            'ws://192.168.178.135:7125/websocket', None, event_loop)
-        event_loop.create_task(c.connect(lambda: print(
-            'I AM COOOOOOOOOOOOOOOONECTED!!!!!!!!!!!')))
-        event_loop.run_forever()
-    finally:
-        event_loop.close()
-    exit()

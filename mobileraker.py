@@ -1,21 +1,18 @@
 import argparse
 import asyncio
 import base64
-import datetime
 import hashlib
 import logging
 import os
-from asyncio import AbstractEventLoop, Lock, Task
-from logging.handlers import RotatingFileHandler
+from asyncio import AbstractEventLoop, Lock
 from typing import Any, Dict, List, Optional, cast
 
-import coloredlogs
 from dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
 from snapshot_client import SnapshotClient
 
 from util.configs import CompanionLocalConfig, CompanionRemoteConfig, printer_data_logs_dir
 from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
-                                                    FcmRequestDto,
+                                                FcmRequestDto,
                                                     NotificationContentDto)
 from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
                                                       NotificationSnap)
@@ -78,7 +75,7 @@ class MobilerakerCompanion:
         await self._jrpc.connect(lambda: self.loop.create_task(self._init_client()))
 
     async def _init_client(self, no_try: int = 0) -> None:
-        self.logger.info("Client init started... Try#%i" % no_try)
+        self.logger.info("Client init started... Try#%i", no_try)
         response, err = await self._jrpc.send_and_receive_method("server.info")
         self._parse_server_info(response, err)
         self.klippy_ready = self.server_info.klippy_state == 'ready'
@@ -88,13 +85,14 @@ class MobilerakerCompanion:
             if not self.init_done:
                 self.init_done = True
                 await self._write_meta_into_db()
-                self.logger.debug('Src: INIT_DONE')
+                self.logger.info('Trigger initial Notifcation Evaluation')
                 self.evaluate_notification()
             await self._subscribe_to_object_notifications()
+            self.logger.info("Client init completed")
         else:
             wait_for = min(pow(2, no_try + 1), 30 * 60)
             self.logger.warning(
-                "Klippy was not ready. Trying again in %i seconds..." % wait_for)
+                "Klippy was not ready. Trying again in %i seconds...", wait_for)
             await asyncio.sleep(wait_for)
             self.loop.create_task(
                 self._init_client(no_try=no_try + 1))
@@ -104,16 +102,16 @@ class MobilerakerCompanion:
         response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
                                                                  {"namespace": "mobileraker", "key": "fcm.client", "value": client_info.toJSON()})
         if err:
-            self.logger.warn("Could not write version into moonraker DB")
+            self.logger.warning("Could not write version into moonraker DB")
         else:
             self.logger.info("Wrote version into database")
 
     async def _parse_objects_response(self, message: Dict[str, Any], err=None):
-        self.logger.debug("Received objects response %s" % message)
+        self.logger.debug("Received objects response %s", message)
         await self._parse_notify_status_update(cast(Dict, message["result"]["status"]))
 
     async def _parse_notify_status_update(self, status_objects: Dict[str, Any]):
-        self.logger.debug("Received status update for %s" % status_objects)
+        self.logger.debug("Received status update for %s", status_objects)
         for key, object_data in status_objects.items():
             if key == "print_stats":
                 await self._parse_print_stats_update(object_data)
@@ -266,7 +264,7 @@ class MobilerakerCompanion:
             dtos = []
             cfgs = await self.fetch_fcm_cfgs()
             #self.logger.info(f'Yes i am here! - {snapshot.progress}')
-            self.logger.info(f'Got configs: {cfgs}')
+            self.logger.info(f'Got {len(cfgs)} configs')
             for c in cfgs:
                 self.logger.info(
                     f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
@@ -383,9 +381,9 @@ class MobilerakerCompanion:
     def _take_image(self) -> Optional[str]:
         img_encoded = None
         if self.companion_config.include_snapshot:
-            bytes = self._snapshot_client.takeSnapshot()
-            if bytes is not None:
-                img_encoded = base64.b64encode(bytes).decode("ascii")
+            img_bytes = self._snapshot_client.takeSnapshot()
+            if img_bytes is not None:
+                img_encoded = base64.b64encode(img_bytes).decode("ascii")
         return img_encoded
 
     def evaluate_m117(self) -> None:

@@ -1,10 +1,10 @@
 import logging
 from asyncio import AbstractEventLoop
-from typing import List, Optional
+from typing import Optional
 
 import requests
 
-from dtos.mobileraker.companion_request_dto import DeviceRequestDto, FcmRequestDto
+from dtos.mobileraker.companion_request_dto import FcmRequestDto
 
 
 class MobilerakerFcmClient:
