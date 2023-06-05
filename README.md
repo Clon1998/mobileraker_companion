@@ -57,16 +57,16 @@ cd mobileraker_companion
 Create a mobileraker.conf and run the following command
 ```
 docker run -d \
-    -n mobileraker_companion
+    --name mobileraker_companion
     -v /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf
-    ghcr.io/Clon1998/mobileraker_companion:latest
+    ghcr.io/clon1998/mobileraker_companion:latest
 ```
 
 or via docker compose:
 ```yaml
 services:
   mobileraker_companion:
-    image: ghcr.io/Clon1998/mobileraker_companion:latest
+    image: ghcr.io/clon1998/mobileraker_companion:latest
     volumes:
     - /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf
 ```
