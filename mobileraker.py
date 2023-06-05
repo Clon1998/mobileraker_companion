@@ -12,7 +12,7 @@ from snapshot_client import SnapshotClient
 
 from util.configs import CompanionLocalConfig, CompanionRemoteConfig, printer_data_logs_dir
 from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
-                                                FcmRequestDto,
+                                                    FcmRequestDto,
                                                     NotificationContentDto)
 from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
                                                       NotificationSnap)
@@ -191,7 +191,6 @@ class MobilerakerCompanion:
             snapshot.printing_duration = self.print_stats.print_duration
         self.logger.info(f'Took a PrinterSnapshot: {snapshot}')
         return snapshot
-    
 
     async def update_snap_in_fcm_cfg(self, machine_id: str, notification_snap: NotificationSnap) -> None:
         self.logger.info(
@@ -255,10 +254,10 @@ class MobilerakerCompanion:
 
             # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
 
-            if self._last_snapshot is not None:
-                if self._last_snapshot.print_state == snapshot.print_state and self._last_snapshot.progress is not None and snapshot.progress is not None and\
-                        (snapshot.progress - self._last_snapshot.progress) < self.remote_config.increments:
-                    return
+            if not self._should_trigger_notification_evaluation(snapshot):
+                return
+            self.logger.info(
+                'New Snapshot passed last Snapshot validation. LastSnap: %s', self._last_snapshot)
             self._last_snapshot = snapshot
 
             dtos = []
@@ -453,6 +452,26 @@ class MobilerakerCompanion:
 
         return NotificationContentDto(333, f'{cfg.machine_id}-m117',
                                       title, body, self._take_image())
+
+    # True: Trigger new eval
+    # False: Skip this eval
+    def _should_trigger_notification_evaluation(self, snapshot: PrinterSnapshot) -> bool:
+        if self._last_snapshot is None:
+            return True
+
+        if self._last_snapshot.print_state != snapshot.print_state:
+            return True
+
+        last_progress = self._last_snapshot.progress
+        cur_progress = snapshot.progress
+
+        if last_progress == cur_progress:
+            return False
+
+        if last_progress is None or cur_progress is None:
+            return True
+
+        return (cur_progress - last_progress) >= self.remote_config.increments
 
 
 def main() -> None:
