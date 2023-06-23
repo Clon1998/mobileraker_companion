@@ -74,7 +74,7 @@ class CompanionLocalConfig:
             'general', 'language', fallback='en')
         self.timezone_str: str = self.config.get(
             'general', 'timezone', fallback=tzlocal.get_localzone_name())  # fallback to system timezone (Hopefully)
-        self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str)
+        self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str if self.timezone_str is not None else "Greenwich")
         self.eta_format: str = self.config.get(
             'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')
         self.include_snapshot: bool = self.config.getboolean(
