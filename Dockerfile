@@ -14,7 +14,7 @@ RUN apt update \
  && apt install -y \
       git \
       zlib1g-dev \
-      libjpeg8-dev\
+      libjpeg62-turbo-dev\
  && apt clean
 
 WORKDIR /opt
