@@ -1,5 +1,5 @@
 # Build the venv
-FROM python:3 as build
+FROM python:3-bookworm as build
 
 WORKDIR /opt
 
@@ -8,13 +8,13 @@ RUN python -m venv venv \
  && venv/bin/pip install -r mobileraker-requirements.txt
 
 # Runtime Image
-FROM python:3-slim
+FROM python:3-slim-bookworm
 
 RUN apt update \
  && apt install -y \
       git \
-      zlib1g-dev \
-      libjpeg62-turbo-dev\
+      zlib1g \
+      libtiff6 libjpeg62-turbo libopenjp2-7 \
  && apt clean
 
 WORKDIR /opt
