@@ -10,14 +10,55 @@ SYSTEMDDIR="/etc/systemd/system"
 
 MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 
-install_dependencies()
-{
-    sudo apt update
-    sudo apt install -y \
-            git \
-            zlib1g \
-            libtiff5 libjpeg62-turbo libopenjp2-7
+
+
+# Function to detect Linux distribution
+detect_distribution() {
+    if [[ -f /etc/os-release ]]; then
+        # Read the distribution information
+        source /etc/os-release
+        # Set the distribution variable based on ID or ID_LIKE
+        if [[ -n $ID ]]; then
+            DISTRIBUTION=$ID
+        elif [[ -n $ID_LIKE ]]; then
+            DISTRIBUTION=$ID_LIKE
+        else
+            DISTRIBUTION=""
+        fi
+    else
+        # Unable to detect distribution
+        DISTRIBUTION=""
+    fi
 }
+
+# Function to install dependencies based on distribution
+install_dependencies() {
+    case $DISTRIBUTION in
+        "debian" | "ubuntu" | "linuxmint")
+            sudo apt-get update
+            sudo apt-get install -y libjpeg8-dev zlib1g-dev
+            ;;
+        "fedora" | "centos" | "rhel")
+            sudo dnf install -y libjpeg-devel zlib-devel
+            ;;
+        "arch" | "manjaro" | "endeavouros")
+            sudo pacman -Sy --noconfirm  libjpeg-turbo zlib
+            ;;
+        *)
+            echo "Unsupported distribution. Please install pillow dependencies manually. (https://pillow.readthedocs.io/en/stable/installation.html#external-libraries)"
+            exit 1
+            ;;
+    esac
+}
+
+# install_dependencies()
+# {
+#     sudo apt update
+#     sudo apt install -y \
+#             git \
+#             zlib1g \
+#             libtiff5 libjpeg62-turbo libopenjp2-7
+# }
 
 create_virtualenv()
 {
@@ -125,6 +166,7 @@ done
 
 # Run installation steps defined above
 verify_ready
+detect_distribution
 install_dependencies
 create_virtualenv
 install_script
