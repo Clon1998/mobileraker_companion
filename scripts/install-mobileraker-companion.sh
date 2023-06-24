@@ -34,15 +34,31 @@ detect_distribution() {
 # Function to install dependencies based on distribution
 install_dependencies() {
     case $DISTRIBUTION in
-        "debian" | "ubuntu" | "linuxmint")
-            sudo apt-get update
-            sudo apt-get install -y libjpeg8-dev zlib1g-dev
+        "raspbian" | "debian")
+            if [ "$(id -u)" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            $SUDO_CMD apt-get update
+            $SUDO_CMD apt-get install -y libjpeg62-turbo-dev zlib1g-dev
+            ;;
+        "ubuntu" | "linuxmint")
+            if [ "$(id -u)" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            $SUDO_CMD apt-get update
+            $SUDO_CMD apt-get install -y libjpeg8-dev zlib1g-dev
             ;;
         "fedora" | "centos" | "rhel")
-            sudo dnf install -y libjpeg-devel zlib-devel
+            if [ "$(id -u)" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            $SUDO_CMD dnf install -y libjpeg-devel zlib-devel
             ;;
         "arch" | "manjaro" | "endeavouros")
-            sudo pacman -Sy --noconfirm  libjpeg-turbo zlib
+            if [ "$(id -u)" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            $SUDO_CMD pacman -Sy --noconfirm  libjpeg-turbo zlib
             ;;
         *)
             echo "Unsupported distribution. Please install pillow dependencies manually. (https://pillow.readthedocs.io/en/stable/installation.html#external-libraries)"
@@ -167,8 +183,8 @@ done
 # Run installation steps defined above
 verify_ready
 detect_distribution
-install_dependencies
 create_virtualenv
 install_script
 add_to_asvc
+install_dependencies
 start_software
