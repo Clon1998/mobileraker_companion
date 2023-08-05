@@ -266,7 +266,7 @@ class MobilerakerCompanion:
             self.logger.info(f'Got {len(cfgs)} configs')
             for c in cfgs:
                 self.logger.info(
-                    f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
+                    f'Evaluate for machineID {c.machine_id}, cfg.snap: {c.snap.state} {c.snap.progress}, cfg.settings: {c.settings.progress_config}  {c.settings.state_config}')
                 notifications = []
                 if not c.fcm_token:
                     continue
@@ -440,11 +440,11 @@ class MobilerakerCompanion:
 
         has_title = (len(split) == 2)
 
-        title = split[0] if has_title else translate(cfg.language,
-                                                     'm117_custom_title')
+        title = split[0].strip() if has_title else translate(
+            cfg.language, 'm117_custom_title')
         title = replace_placeholders(
             title, cfg, cur_snap, self.companion_config)
-        body = split[1] if has_title else split[0]
+        body = (split[1] if has_title else split[0]).strip()
         body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
 
         self.logger.info(

@@ -114,7 +114,7 @@ snapshot_uri: http://127.0.0.1/webcam/?action=snapshot
 # Default: 
 # Optional
 snapshot_rotation: 0
-# The rotation tapplied to the image. Valid values : 0, 90, 180, 270
+# The rotation applied to the image. Valid values : 0, 90, 180, 270
 # Default: 0
 # Optional
 
