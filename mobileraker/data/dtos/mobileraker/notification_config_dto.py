@@ -40,13 +40,13 @@ class DeviceNotificationEntry:
         self.snap: NotificationSnap
 
     @staticmethod
-    def fromJSON(json: Dict[str, Any]) -> 'DeviceNotificationEntry':
+    def fromJSON(machine_id: str, json: Dict[str, Any]) -> 'DeviceNotificationEntry':
         cfg = DeviceNotificationEntry()
 
+        cfg.machine_id = machine_id
         cfg.created = json['created']
         cfg.last_modified = json['lastModified']
         cfg.fcm_token = json['fcmToken']
-        cfg.machine_id = json['machineId']
         cfg.machine_name = json['machineName']
         cfg.language = json['language']
         cfg.settings = NotificationSettings.fromJSON(json['settings'])
@@ -97,7 +97,8 @@ class NotificationSettings:
         cfg.created = json['created']
         cfg.last_modified = json['lastModified']
         prog_float = json['progress']
-        cfg.progress_config = min(50, round(prog_float * 100)) if prog_float > 0 else -1
+        cfg.progress_config = min(
+            50, round(prog_float * 100)) if prog_float > 0 else -1
         cfg.state_config = json['states']
 
         return cfg
@@ -128,7 +129,8 @@ class NotificationSnap:
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSnap':
         cfg = NotificationSnap()
 
-        cfg.progress = round(json['progress']*100) if 'progress' in json else -1
+        cfg.progress = round(
+            json['progress']*100) if 'progress' in json else -1
         cfg.state = json['state'] if 'state' in json else 'standby'
         cfg.m117 = json['m117'] if 'm117' in json else ''
 
@@ -141,8 +143,42 @@ class NotificationSnap:
             "m117": self.m117,
         }
 
+    def copy_with(self, progress: Optional[int] = None,
+                  state: Optional[str] = None,
+                  m117: Optional[str] = None) -> 'NotificationSnap':
+        """
+        Create a new instance of NotificationSnap with updated attributes.
+
+        Example usage:
+        new_snap = old_snap.copyWith(progress=50, state='completed')
+
+        Parameters:
+            **kwargs: Keyword arguments to update the attributes.
+
+        Returns:
+            NotificationSnap: A new instance with the updated attributes.
+        """
+
+        copied_snap = NotificationSnap(
+            progress=self.progress if progress is None else progress,
+            state=self.state if state is None else state,
+            m117=self.m117 if m117 is None else m117
+        )
+
+        return copied_snap
+
     def __str__(self):
         return '%s(%s)' % (
             type(self).__name__,
             ', '.join('%s=%s' % item for item in vars(self).items())
+        )
+    
+    def __eq__(self, other):
+        if not isinstance(other, NotificationSnap):
+            return False
+
+        return (
+            self.progress == other.progress and
+            self.state == other.state and
+            self.m117 == other.m117
         )

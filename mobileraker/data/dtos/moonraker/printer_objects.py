@@ -73,7 +73,7 @@ class DisplayStatus:
         n = deepcopy(self)
         # Message is M117
         if "message" in json:
-            n.message = json["message"]
+            n.message = json["message"].strip() if isinstance(json["message"], str) else None
         if "progress" in json:
             n.progress = json["progress"]
 

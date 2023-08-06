@@ -1,10 +1,10 @@
 
 from typing import Dict
-from util.configs import CompanionLocalConfig
+from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
+from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
+from mobileraker.util.configs import CompanionLocalConfig
 
-from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
-from util.notification_placeholders import replace_placeholders
-from dtos.moonraker.printer_snapshot import PrinterSnapshot
+from mobileraker.util.notification_placeholders import replace_placeholders
 
 # List of available tokens
 # printer_name - The name of the printer
@@ -14,19 +14,26 @@ from dtos.moonraker.printer_snapshot import PrinterSnapshot
 
 _mobileraker_en: Dict[str, str] = {
     'print_progress_title': 'Print progress of $printer_name',
-    'print_progress_body': '$progress $eta',
+    'print_progress_body': '$progress, ETA:$a_eta',
     'state_title': 'State of $printer_name changed',
     'state_printing_body': 'Started to print file: "$file"',
-    'state_paused_body': 'Paused printing file: "$file"',
+    'state_paused_body': 'Paused while printing file: "$file"',
     'state_completed_body': 'Finished printing: "$file"',
     'state_error_body': 'Error while printing file: "$file"',
     'state_standby_body': 'Printer is in Standby',
     'm117_custom_title': 'User Notification'
-
 }
 
 _mobileraker_de: Dict[str, str] = {
-    'print_progress_title': 'Druck-Fortschritt von %s',
+    'print_progress_title': 'Druck-Fortschritt von $printer_name',
+    'print_progress_body': '$progress, ETA:$a_eta',
+    'state_title': 'Status von $printer_name geändert',
+    'state_printing_body': 'Starte Druck der Datei: "$file"',
+    'state_paused_body': 'Druck der Datei pausiert: "$file"',
+    'state_completed_body': 'Druck abgeschlossen: "$file"',
+    'state_error_body': 'Fehler beim Drucken der Datei: "$file"',
+    'state_standby_body': 'Drucker im Standby',
+    'm117_custom_title': 'Nutzer-Benachrichtigung'
 }
 
 
@@ -60,7 +67,7 @@ def translate(country_code: str, str_key: str) -> str:
     translations = languages[country_code]
     if str_key not in translations:
         if country_code == 'en':
-            raise Exception(f'No language-entry found for "{str_key}"')
+            raise AttributeError('No language-entry found for "%s"', str_key)
         # fallback to en
         return translate('en', str_key)
     translation = translations[str_key]

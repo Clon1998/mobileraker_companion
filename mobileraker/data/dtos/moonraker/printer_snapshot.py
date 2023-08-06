@@ -5,9 +5,11 @@ from typing import Optional
 class PrinterSnapshot:
     def __init__(
         self,
+        klippy_ready: bool,
         print_state: str,
     ) -> None:
         super().__init__()
+        self.klippy_ready: bool = klippy_ready
         self.print_state: str = print_state
         self.m117: Optional[str] = None
         self.m117_hash: str = ''

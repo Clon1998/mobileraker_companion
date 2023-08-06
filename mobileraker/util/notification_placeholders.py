@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
-from util.configs import CompanionLocalConfig
-from dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
-from dtos.moonraker.printer_snapshot import PrinterSnapshot
+
+from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
+from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
+from mobileraker.util.configs import CompanionLocalConfig
 
 
 def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig) -> str:
@@ -16,7 +17,6 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
         'a_eta': adaptive_eta_formatted(eta, companion_config.eta_format),
         'remaining': snap.get_formatted_remaining_time() if snap.get_formatted_remaining_time() else '--:--'
     }
-
 
     if snap.print_state == 'printing':
         if snap.progress is not None:
@@ -40,3 +40,18 @@ def eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional[str]:
         return
 
     return eta.strftime(eta_format)
+
+def get_relative_date_string(date):
+    today = datetime.today().date()
+    tomorrow = today + timedelta(days=1)
+    yesterday = today - timedelta(days=1)
+
+    if date == today:
+        return "Today"
+    elif date == tomorrow:
+        return "Tomorrow"
+    elif date == yesterday:
+        return "Yesterday"
+    else:
+        return date.strftime("%Y-%m-%d")  # Return the date in the format YYYY-MM-DD
+
