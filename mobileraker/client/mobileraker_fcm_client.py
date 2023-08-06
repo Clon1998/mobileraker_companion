@@ -48,7 +48,8 @@ class MobilerakerFcmClient:
         jsons = request.toJSON()
         self.logger.info("Submitting %i notifications to mobileraker server", len(
             request.device_requests))
-        self.logger.debug(f"Sending to firebase fcm ({self.fcm_uri}): {jsons}")
+        self.logger.debug("Sending to firebase fcm (%s): %s",
+                          self.fcm_uri, jsons)
         try:
             res = requests.post(
                 f'{self.fcm_uri}/companion/v2/update', json=jsons, timeout=30

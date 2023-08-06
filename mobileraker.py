@@ -75,7 +75,7 @@ def main() -> None:
                 loop=event_loop,
                 companion_config=local_config,
             )
-            event_loop.create_task(jrpc.connect())
+            event_loop.create_task(client.start())
         event_loop.run_forever()
     finally:
         event_loop.close()
