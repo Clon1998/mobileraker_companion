@@ -12,15 +12,6 @@ from mobileraker.util.functions import get_software_version
 from mobileraker.util.logging import setup_logging
 
 
-async def _test(jrpc, event_loop):
-    ds = DataSyncService(
-        jrpc=jrpc,
-        loop=event_loop,
-    )
-
-    await ds.resync()
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Mobileraker - Companion")
