@@ -14,7 +14,7 @@ from mobileraker.util.notification_placeholders import replace_placeholders
 
 _mobileraker_en: Dict[str, str] = {
     'print_progress_title': 'Print progress of $printer_name',
-    'print_progress_body': '$progress, ETA:$a_eta',
+    'print_progress_body': '$progress, ETA: $a_eta, Layer: $cur_layer/$max_layer',
     'state_title': 'State of $printer_name changed',
     'state_printing_body': 'Started to print file: "$file"',
     'state_paused_body': 'Paused while printing file: "$file"',
@@ -26,7 +26,7 @@ _mobileraker_en: Dict[str, str] = {
 
 _mobileraker_de: Dict[str, str] = {
     'print_progress_title': 'Druck-Fortschritt von $printer_name',
-    'print_progress_body': '$progress, ETA:$a_eta',
+    'print_progress_body': '$progress, ETA: $a_eta',
     'state_title': 'Status von $printer_name geändert',
     'state_printing_body': 'Starte Druck der Datei: "$file"',
     'state_paused_body': 'Druck der Datei pausiert: "$file"',

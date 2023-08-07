@@ -3,7 +3,7 @@ import hashlib
 import logging
 from typing import Any, Callable, Dict, List, Optional, cast
 from mobileraker.client.moonraker_client import MoonrakerClient
-from mobileraker.data.dtos.moonraker.printer_objects import DisplayStatus, PrintStats, ServerInfo, VirtualSDCard
+from mobileraker.data.dtos.moonraker.printer_objects import DisplayStatus, GCodeFile, GCodeMove, PrintStats, ServerInfo, Toolhead, VirtualSDCard
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 
 
@@ -35,8 +35,11 @@ class DataSyncService:
         self.klippy_ready: bool = False
         self.server_info: ServerInfo = ServerInfo()
         self.print_stats: PrintStats = PrintStats()
+        self.toolhead: Toolhead = Toolhead()
+        self.gcode_move: GCodeMove = GCodeMove()
         self.display_status: DisplayStatus = DisplayStatus()
         self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
+        self.current_file: Optional[GCodeFile] = None
         self.resync_retries: int = resync_retries
 
         self._snapshot_listeners: List[Callable[[PrinterSnapshot], None]] = []
@@ -67,17 +70,27 @@ class DataSyncService:
             None
         '''
         self._logger.debug("Received status update for %s", status_objects)
+        fetchMeta = False
         for key, object_data in status_objects.items():
             if key == 'print_stats':
                 self.print_stats = self.print_stats.updateWith(object_data)
+                fetchMeta = True
             elif key == 'display_status':
                 self.display_status = self.display_status.updateWith(
                     object_data)
             elif key == 'virtual_sdcard':
                 self.virtual_sdcard = self.virtual_sdcard.updateWith(
                     object_data)
+            elif key == 'toolhead':
+                self.toolhead = self.toolhead.updateWith(object_data)
+            elif key == 'gcode_move':
+                self.gcode_move = self.gcode_move.updateWith(object_data)
 
-        self._notify_listeners()
+        # Kinda hacky but this works!
+        if fetchMeta:
+            self._loop.create_task(self._sync_current_file())
+        else:
+            self._notify_listeners()
 
     def _on_klippy_ready(self) -> None:
         '''
@@ -136,11 +149,28 @@ class DataSyncService:
             "objects": {
                 "print_stats": None,
                 # "display_status": None,
-                "virtual_sdcard": None
+                "virtual_sdcard": None,
+                "toolhead": None,
+                "gcode_move": None,
             }
         }
         response, err = await self._jrpc.send_and_receive_method("printer.objects.query", params)
         self._parse_objects(response["result"]["status"])
+
+    async def _sync_current_file(self) -> None:
+        '''
+        Synchronize the current file with Moonraker.
+
+        Returns:
+            None
+        '''
+
+        if self.print_stats.filename and (self.current_file is None or self.current_file.filename != self.print_stats.filename):
+            self.current_file = await self._fetch_gcode_meta(self.print_stats.filename)
+        elif not self.print_stats.filename and self.current_file:
+            self.current_file = None
+
+        self._notify_listeners()
 
     async def _subscribe_for_object_updates(self) -> None:
         '''
@@ -154,7 +184,9 @@ class DataSyncService:
             "objects": {
                 "print_stats": None,
                 "display_status": None,
-                "virtual_sdcard": None
+                "virtual_sdcard": None,
+                "toolhead": None,
+                "gcode_move": None,
             }
         }
         await self._jrpc.send_method("printer.objects.subscribe", None, params)
@@ -194,6 +226,16 @@ class DataSyncService:
             await sleep(wait_for)
             await self._resync(no_try=no_try + 1)
 
+    async def _fetch_gcode_meta(self, file_name: str) -> Optional[GCodeFile]:
+        self._logger.info("Fetching metadata for %s", file_name)
+        meta, err = await self._jrpc.send_and_receive_method('server.files.metadata', {'filename': file_name})
+        if err:
+            self._logger.error(
+                "Could not fetch metadata for %s: %s", file_name, err)
+            return None
+        self._logger.debug("Metadata for %s: %s", file_name, meta)
+        return GCodeFile.from_json(meta['result'])
+
     async def resync(self) -> None:
         '''
         Perform a (Re)Sync with Moonraker.
@@ -217,15 +259,16 @@ class DataSyncService:
                                    self.print_stats.state if self.klippy_ready else "error")
 
         # Update the snapshot attributes with relevant data
-        snapshot.filename = self.print_stats.filename
+        snapshot.print_stats = self.print_stats
+        snapshot.virtual_sdcard = self.virtual_sdcard
+        snapshot.toolhead = self.toolhead
+        snapshot.gcode_move = self.gcode_move
+        snapshot.current_file = self.current_file
         snapshot.m117 = self.display_status.message
         snapshot.m117_hash = hashlib.sha256(snapshot.m117.encode(
             "utf-8")).hexdigest() if snapshot.m117 else ''
 
-        # If the printer is currently printing, update progress and printing duration
-        if self.print_stats.state == "printing":
-            snapshot.progress = round(self.virtual_sdcard.progress * 100)
-            snapshot.printing_duration = self.print_stats.print_duration
+
 
         self._logger.debug('Took a PrinterSnapshot: %s', snapshot)
         return snapshot

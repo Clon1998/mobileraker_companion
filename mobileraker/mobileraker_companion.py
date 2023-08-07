@@ -71,7 +71,7 @@ class MobilerakerCompanion:
             if not self._fulfills_evaluation_threshold(snapshot):
                 return
             self._logger.info(
-                'Snapshot passed threshold. LastSnap: %s', self._last_snapshot)
+                'Snapshot passed threshold. LastSnap: %s, NewSnap: %s', self._last_snapshot, snapshot)
             self._last_snapshot = snapshot
 
             app_cfgs = await self._fetch_app_cfgs()
@@ -307,7 +307,9 @@ class MobilerakerCompanion:
             if printer_snap.print_state not in ['printing', 'paused']:
                 progress_update = 0
 
-            if printer_snap.progress is not None and normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config)):
+            if (printer_snap.progress is not None 
+                and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
+                     or printer_snap.progress < last.progress)):
                 progress_update = printer_snap.progress
 
         updated = last.copy_with(

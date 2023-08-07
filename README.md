@@ -17,8 +17,10 @@ Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling p
   - [Companion - Config](#companion---config)
   - [Moonraker - Update manager](#moonraker---update-manager)
   - [How it works](#how-it-works)
+    - [Custom Notifications](#custom-notifications)
     - [Visualization of the architecture](#visualization-of-the-architecture)
   - [Changelog](#changelog)
+    - [\[v0.4.0\] - 2023-08-xx](#v040---2023-08-xx)
     - [\[v0.3.0\] - 2023-03-29](#v030---2023-03-29)
     - [\[v0.2.1\] - 2022-07-07](#v021---2022-07-07)
 ## Companion - Installation
@@ -161,7 +163,7 @@ path: ~/mobileraker_companion
 origin: https://github.com/Clon1998/mobileraker_companion.git
 primary_branch:main
 managed_services: mobileraker
-env: ~/mobileraker-env/bin/python
+virtualenv: ~/mobileraker-env
 requirements: scripts/mobileraker-requirements.txt
 install_script: scripts/install-mobileraker-companion.sh
 ```
@@ -172,13 +174,22 @@ To construct a new noticiation it follows the following schema:
 2. Construct the notification's title and content based on the fetched notificaton configs
 3. Pass the notification to the FCM Backend in order to submit it to Apple's/Google's Push services
 
-
+### Custom Notifications
+Custom notifications are supported through the gcode command `M117` and the prefix `$MR$:`.
+Learn more in the [Custom Notification](docs/Custom_Notifications.md) documentation file.
 
 ### Visualization of the architecture
 ![Sys Diag](assets/Mobileraker-System_witthbg.png)
 
 
 ## Changelog
+
+### [v0.4.0] - 2023-08-xx
+
+- Restructured the project to make it easier to maintain and extend
+- Improved the accurarcy for the remaining_time, progress and eta
+- Renamed the notification placeholder `remaining` -> `remaining_avg`
+- Added new custom notification placeholders: `remaining_file, remaining_filament, remaining_slicer, cur_layer, max_layer`
 
 ### [v0.3.0] - 2023-03-29
 
