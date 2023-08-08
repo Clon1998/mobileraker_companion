@@ -1,6 +1,8 @@
-from asyncio import AbstractEventLoop, Lock, sleep
+from asyncio import AbstractEventLoop, Lock
 import base64
 import logging
+from typing import List, Optional
+
 
 import requests
 from mobileraker.client.mobileraker_fcm_client import MobilerakerFcmClient
@@ -8,12 +10,10 @@ from mobileraker.client.moonraker_client import MoonrakerClient
 from mobileraker.client.snapshot_client import SnapshotClient
 from mobileraker.data.dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
 from mobileraker.data.dtos.mobileraker.companion_request_dto import DeviceRequestDto, FcmRequestDto, NotificationContentDto
-from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry, NotificationSnap
-from mobileraker.data.dtos.moonraker.printer_objects import DisplayStatus, PrintStats, ServerInfo, VirtualSDCard
+from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.service.data_sync_service import DataSyncService
 from mobileraker.util.configs import CompanionLocalConfig, CompanionRemoteConfig
-from typing import Any, Dict, List, Optional, cast
 
 from mobileraker.util.functions import get_software_version, is_valid_uuid, normalized_progress_interval_reached
 from mobileraker.util.i18n import translate, translate_replace_placeholders
@@ -225,15 +225,20 @@ class MobilerakerCompanion:
             return None
 
         self._logger.info(
-            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i',
+            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s',
             cur_snap.progress,
             cfg.snap.progress,
             cur_snap.progress - cfg.snap.progress,
-            max(self.remote_config.increments, cfg.settings.progress_config)
+            max(self.remote_config.increments, cfg.settings.progress_config),
+            normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(
+                self.remote_config.increments, cfg.settings.progress_config))
         )
-
         # ensure the progress threshhold of the user's cfg is reached.
-        if cfg.snap.state in ["printing", "paused"] and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config)):
+        # The last section also ensures we issue a notifications for the 0 percent step !
+        if (cur_snap.print_state in ["printing", "paused"]
+            and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
+            and cfg.snap.state == 'printing' and cur_snap.progress == 0
+            ):
             return None
 
         title = translate_replace_placeholders(
@@ -307,7 +312,7 @@ class MobilerakerCompanion:
             if printer_snap.print_state not in ['printing', 'paused']:
                 progress_update = 0
 
-            if (printer_snap.progress is not None 
+            if (printer_snap.progress is not None
                 and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
                      or printer_snap.progress < last.progress)):
                 progress_update = printer_snap.progress
@@ -334,4 +339,4 @@ class MobilerakerCompanion:
             self._logger.info(
                 'Updated snap in FCM Cfg for %s: %s', cfg.machine_id, response)
 
-        return False
+        return
