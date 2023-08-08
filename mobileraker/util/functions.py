@@ -50,4 +50,4 @@ def normalized_progress_interval_reached(last: int, current: int, interval: int)
         bool: True if the current progress exceeds the normalized threshold, False otherwise.
     """
     noramlized = last - (last % interval)
-    return (current - noramlized) >= interval
+    return abs(current - noramlized) >= interval

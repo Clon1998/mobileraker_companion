@@ -214,14 +214,13 @@ class MobilerakerCompanion:
         return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
 
     def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
-
-        # only issue new progress notifications if the printer is printing
-        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
-        if cur_snap.print_state != "printing" or cur_snap.progress is None or cur_snap.progress == 100:
-            return None
-
         # If progress notifications are disabled, skip it!
         if cfg.settings.progress_config == -1:
+            return None
+
+        # only issue new progress notifications if the printer is printing, or paused
+        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
+        if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
             return None
 
         self._logger.info(
@@ -233,11 +232,10 @@ class MobilerakerCompanion:
             normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(
                 self.remote_config.increments, cfg.settings.progress_config))
         )
-        # ensure the progress threshhold of the user's cfg is reached.
-        # The last section also ensures we issue a notifications for the 0 percent step !
-        if (cur_snap.print_state in ["printing", "paused"]
+
+        # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
+        if (cfg.snap.state in ["printing", "paused"]
             and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
-            and cfg.snap.state == 'printing' and cur_snap.progress == 0
             ):
             return None
 
@@ -308,14 +306,13 @@ class MobilerakerCompanion:
         last = cfg.snap
 
         progress_update = None
-        if last.progress != printer_snap.progress:
-            if printer_snap.print_state not in ['printing', 'paused']:
-                progress_update = 0
-
-            if (printer_snap.progress is not None
-                and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
-                     or printer_snap.progress < last.progress)):
-                progress_update = printer_snap.progress
+        if printer_snap.print_state not in ['printing', 'paused']:
+            progress_update = 0
+        elif (last.progress != printer_snap.progress
+              and printer_snap.progress is not None
+              and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
+                   or printer_snap.progress < last.progress)):
+            progress_update = printer_snap.progress
 
         updated = last.copy_with(
             state=printer_snap.print_state if printer_snap.m117_hash is not None and last.state != printer_snap.print_state else None,
