@@ -32,6 +32,7 @@ class DataSyncService:
         self._jrpc: MoonrakerClient = jrpc
         self._loop: AbstractEventLoop = loop
         self._logger: logging.Logger = logging.getLogger('mobileraker.sync')
+        self._queried_for_session: bool = False
         self.klippy_ready: bool = False
         self.server_info: ServerInfo = ServerInfo()
         self.print_stats: PrintStats = PrintStats()
@@ -111,6 +112,7 @@ class DataSyncService:
         '''
         self._logger.info("Klippy has reported a shutdown state")
         self.klippy_ready = False
+        self._queried_for_session = False
         self._notify_listeners()
 
     def _on_klippy_disconnected(self) -> None:
@@ -123,6 +125,7 @@ class DataSyncService:
         self._logger.info(
             "Moonraker's connection to Klippy has terminated/disconnected")
         self.klippy_ready = False
+        self._queried_for_session = False
         self._notify_listeners()
 
     async def _sync_klippy_data(self) -> None:
@@ -206,7 +209,6 @@ class DataSyncService:
         if is_connected:
             try:
                 await self.resync()
-                await self._subscribe_for_object_updates()
             except TimeoutError as err:
                 self._logger.error("Could not setup sync client: %s", err)
 
@@ -244,7 +246,19 @@ class DataSyncService:
             None
         '''
         self._logger.info("Doing a (Re)Sync with moonraker")
+        self.server_info: ServerInfo = ServerInfo()
+        self.print_stats: PrintStats = PrintStats()
+        self.toolhead: Toolhead = Toolhead()
+        self.gcode_move: GCodeMove = GCodeMove()
+        self.display_status: DisplayStatus = DisplayStatus()
+        self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
+
         await self._resync()
+        # We only subscribe for updates if Klippy is ready
+        if self.klippy_ready and not self._queried_for_session:
+            self._queried_for_session = True
+            await self._subscribe_for_object_updates()
+
         self._logger.info("(Re)Sync completed")
 
     def take_snapshot(self) -> PrinterSnapshot:
@@ -267,8 +281,6 @@ class DataSyncService:
         snapshot.m117 = self.display_status.message
         snapshot.m117_hash = hashlib.sha256(snapshot.m117.encode(
             "utf-8")).hexdigest() if snapshot.m117 else ''
-
-
 
         self._logger.debug('Took a PrinterSnapshot: %s', snapshot)
         return snapshot
