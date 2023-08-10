@@ -35,7 +35,7 @@ class MobilerakerCompanionLoggingHandler(logging.handlers.RotatingFileHandler):
 # Logging based on Arksine's logging setup
 def setup_logging(log_file, software_version):
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
 
     coloredlogs.install(
         logger=root_logger, fmt=f'%(asctime)s %(name)s %(levelname)s %(message)s')
