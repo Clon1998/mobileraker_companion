@@ -211,6 +211,8 @@ class DataSyncService:
                 await self.resync()
             except TimeoutError as err:
                 self._logger.error("Could not setup sync client: %s", err)
+        else:
+            self._queried_for_session = False
 
     async def _resync(self, no_try: int = 0) -> None:
         if no_try >= self.resync_retries:

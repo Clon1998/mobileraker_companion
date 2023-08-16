@@ -186,6 +186,10 @@ class MobilerakerCompanion:
         # check if we even need to issue a new notification!
         if cfg.snap.state == cur_snap.print_state:
             return None
+        
+        # only allow notifications of type error for the state transition printing -> error
+        if cfg.snap.state != "printing" and cur_snap.print_state == "error":
+            return None
 
         # check if new print state actually should issue a notification trough user configs
         if cur_snap.print_state not in cfg.settings.state_config:
