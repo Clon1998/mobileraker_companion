@@ -50,7 +50,7 @@ class MobilerakerCompanion:
         self._logger = logging.getLogger(
             f'mobileraker.{printer_name.replace(".","_")}')
         self._last_snapshot: Optional[PrinterSnapshot] = None
-        self._evaulate_noti_lock: Lock = Lock(loop=loop)
+        self._evaulate_noti_lock: Lock = Lock()
 
         self._jrpc.register_connection_listener(
             lambda d: self.loop.create_task(self._update_meta_data()) if d else None)
