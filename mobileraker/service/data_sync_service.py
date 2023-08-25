@@ -41,6 +41,7 @@ class DataSyncService:
         self.display_status: DisplayStatus = DisplayStatus()
         self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
         self.current_file: Optional[GCodeFile] = None
+        self.gcode_response: Optional[str] = None
         self.resync_retries: int = resync_retries
 
         self._snapshot_listeners: List[Callable[[PrinterSnapshot], None]] = []
@@ -56,6 +57,9 @@ class DataSyncService:
 
         self._jrpc.register_method_listener(
             'notify_klippy_disconnected', lambda resp: self._on_klippy_disconnected())
+        
+        self._jrpc.register_method_listener(
+            'notify_gcode_response', lambda resp: self._on_gcode_response(resp["params"][0]))
 
         self._jrpc.register_connection_listener(
             lambda is_conncected: self._loop.create_task(self._jrpc_connection_listener(is_conncected)))
@@ -126,6 +130,22 @@ class DataSyncService:
             "Moonraker's connection to Klippy has terminated/disconnected")
         self.klippy_ready = False
         self._queried_for_session = False
+        self._notify_listeners()
+
+
+    def _on_gcode_response(self, response: str) -> None:
+        '''
+        Handle theGcode Response event.
+
+        Returns:
+            None
+        '''
+        # strip "// " from response as it is always part of the Gcode Response (https://www.klipper3d.org/Command_Templates.html?h=action_respond_info#actions)
+        response = response[3:]
+        
+        self._logger.debug(
+            "Received an Gcode Response from Klippy: %s", response)
+        self.gcode_response = response
         self._notify_listeners()
 
     async def _sync_klippy_data(self) -> None:
@@ -283,6 +303,9 @@ class DataSyncService:
         snapshot.m117 = self.display_status.message
         snapshot.m117_hash = hashlib.sha256(snapshot.m117.encode(
             "utf-8")).hexdigest() if snapshot.m117 else ''
+        snapshot.gcode_response = self.gcode_response
+        snapshot.gcode_response_hash = hashlib.sha256(snapshot.gcode_response.encode(
+            "utf-8")).hexdigest() if snapshot.gcode_response else ''
 
         self._logger.debug('Took a PrinterSnapshot: %s', snapshot)
         return snapshot

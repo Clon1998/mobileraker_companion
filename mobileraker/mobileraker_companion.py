@@ -97,17 +97,24 @@ class MobilerakerCompanion:
                     self._logger.info('ProgressNoti: %s - %s',
                                       progress_noti.title, progress_noti.body)
 
-                m117_noti = self._m117_notification(cfg, snapshot)
+                m117_noti = self._custom_notification(cfg, snapshot, True)
                 if m117_noti is not None:
                     notifications.append(m117_noti)
                     self._logger.info('M117Noti: %s - %s',
                                       m117_noti.title, m117_noti.body)
 
+                gcode_response_noti = self._custom_notification(
+                    cfg, snapshot, False)
+                if gcode_response_noti is not None:
+                    notifications.append(gcode_response_noti)
+                    self._logger.info('GCodeResponseNoti: %s - %s',
+                                      gcode_response_noti.title, gcode_response_noti.body)
+
                 self._logger.debug('Notifications for %s: %s',
                                    cfg.fcm_token, notifications)
 
-                self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s', len(
-                    notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None)
+                self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s', len(
+                    notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None)
 
                 if notifications:
                     # Set a webcam img to all DTOs if available
@@ -142,6 +149,9 @@ class MobilerakerCompanion:
             return True
 
         if self._last_snapshot.m117_hash != snapshot.m117_hash:
+            return True
+
+        if self._last_snapshot.gcode_response_hash != snapshot.gcode_response_hash:
             return True
 
         last_progress = self._last_snapshot.progress
@@ -186,7 +196,7 @@ class MobilerakerCompanion:
         # check if we even need to issue a new notification!
         if cfg.snap.state == cur_snap.print_state:
             return None
-        
+
         # only allow notifications of type error for the state transition printing -> error
         if cfg.snap.state != "printing" and cur_snap.print_state == "error":
             return None
@@ -239,8 +249,8 @@ class MobilerakerCompanion:
 
         # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
         if (cfg.snap.state in ["printing", "paused"]
-            and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
-            ):
+                    and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
+                ):
             return None
 
         title = translate_replace_placeholders(
@@ -249,24 +259,41 @@ class MobilerakerCompanion:
             'print_progress_body', cfg, cur_snap, self.companion_config)
         return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
 
-    def _m117_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
-        # skip if m117 is empty/none
-        if not cur_snap.m117:
+    def _custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, is_m117: bool) -> Optional[NotificationContentDto]:
+        """
+        Check if a custom notification should be issued.
+        Args:
+            cfg: The device notification configuration.
+            cur_snap: The current printer snapshot.
+            is_m117: Whether the notification is for an M117 message.
+
+        Returns:
+            The notification content, if any.
+        """
+
+        candidate = cur_snap.m117 if is_m117 else cur_snap.gcode_response
+        prefix = '$MR$:' if is_m117 else 'MR_NOTIFY:'
+
+        if not candidate:
             return None
 
-        # only issue if
-        if not cur_snap.m117.startswith('$MR$:'):
+        if not candidate.startswith(prefix):
             return None
 
-        # only evaluate if we have a new m117/hash
-        if cfg.snap.m117 == cur_snap.m117_hash:
+        message = candidate[len(prefix):]
+        if not message:
             return None
 
-        msg = cur_snap.m117[5:]
-        if not msg:
+        # Check if this is a new notification
+        if is_m117 and cfg.snap.m117 == cur_snap.m117_hash:
+            return None
+        elif not is_m117 and cfg.snap.gcode_response == cur_snap.gcode_response_hash:
             return None
 
-        split = msg.split('|')
+        return self._construct_custom_notification(cfg, cur_snap, message)
+
+    def _construct_custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, message: str) -> Optional[NotificationContentDto]:
+        split = message.split('|')
 
         has_title = (len(split) == 2)
 
@@ -278,7 +305,7 @@ class MobilerakerCompanion:
         body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
 
         self._logger.info(
-            'Got M117/Custom: %s. This translated into: %s -  %s', msg, title, body)
+            'Got M117/Custom: %s. This translated into: %s -  %s', message, title, body)
 
         return NotificationContentDto(333, f'{cfg.machine_id}-m117', title, body)
 
@@ -319,9 +346,10 @@ class MobilerakerCompanion:
             progress_update = printer_snap.progress
 
         updated = last.copy_with(
-            state=printer_snap.print_state if printer_snap.m117_hash is not None and last.state != printer_snap.print_state else None,
+            state=printer_snap.print_state if last.state != printer_snap.print_state else None,
             progress=progress_update,
             m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
+            gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None
         )
 
         if updated == last:
