@@ -21,6 +21,8 @@ class PrinterSnapshot:
         self.current_file: Optional[GCodeFile] = None
         self.toolhead: Optional[Toolhead] = None
         self.gcode_move: Optional[GCodeMove] = None
+        self.gcode_response: Optional[str] = None
+        self.gcode_response_hash: Optional[str] = None
 
     def __str__(self):
         return '%s(%s)' % (
@@ -39,6 +41,7 @@ class PrinterSnapshot:
             and self.m117_hash == other.m117_hash
             and self.virtual_sdcard == other.virtual_sdcard
             and self.current_file == other.current_file
+            and self.gcode_response == other.gcode_response
         )
 
     @property

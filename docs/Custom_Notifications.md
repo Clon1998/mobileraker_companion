@@ -1,18 +1,43 @@
-## General
-> **Note**   
-> THIS IS STILL WIP!
+# Custom Notifications in Mobileraker
 
+Mobileraker offers two alternatives for issuing custom notifications. You can choose the method that best suits your needs:
 
-Custom notifications are supported through the gcode command `M117` and the prefix `$MR$:`. 
-There are two options for issuing a push notification:
-1. _Only the body_: `M117 $MR$:<BODY>` e.g. `M117 $MR$:Hey I am a notification`
-2. _Title and Body_:`M117 $MR$:<TITLE>|<BODY>` e.g. `M117 $MR$:Printer is at Temp!|The printer reached the target temperature`
+## Using `M117` with the Prefix `$MR$:`
 
+Custom notifications can be achieved using the `M117` G-code command along with the `$MR$:` prefix. This method provides two variations for creating notifications:
+
+- **Body-Only Notification**: Format: `M117 $MR$:<BODY>`. Example: `M117 $MR$:Hey, I am a notification`.
+
+- **Title and Body Notification**: Format: `M117 $MR$:<TITLE>|<BODY>`. Example: `M117 $MR$:Printer Status|The printer has reached the target temperature`.
+
+> **Recommendation**
+> Using `M117` is the simplest method. However, if your printer has a display attached, the entire `M117` message will be shown on it. If this is the case, the next option might be preferable.
+
+## Using the `MR_NOTIFY` Custom Macro
+
+This approach involves using the `MR_NOTIFY` G-code macro. To utilize this method, you need to include the `MR_NOTIFY` macro in your printer's configuration. The `MR_NOTIFY` macro has two parameters: `MESSAGE` and `TITLE`, where only `MESSAGE` is mandatory.
+
+**Example Usage**: `MR_NOTIFY TITLE="I am $printer_name" MESSAGE="Feed me more Filament!"`
+
+```properties
+[gcode_macro MR_NOTIFY]
+description: Allows you to send a custom notification via Mobileraker without using the M117 command
+gcode:
+    {% set msg = "MR_NOTIFY:" ~ (params.TITLE ~ "|" if 'TITLE' in params|upper else "") ~ params.MESSAGE %}
+
+    {% if 'MESSAGE' in params|upper %}
+        { action_respond_info(msg) }
+    {% else %}
+        { action_raise_error('Must provide MESSAGE parameter') }
+    {% endif %}
+
+```
+> **Warning**
+> Remember to include this macro in your printer's Klipper configuration file (e.g., printer.cfg). Do **NOT** include it in the mobileraker.conf file.
 
 ## Placeholders:
 
-You can include in the title or body string the following placeholders that 
-the companion will replace the following:
+When crafting your custom notification's title or body/message, you have the flexibility to incorporate placeholders that will be dynamically replaced by the companion. These placeholders allow you to convey specific information relevant to the notification context. Below is a list of available placeholders and their corresponding replacements:
 
 
 | Placeholder Key       | Description                                                                                                                                                      | Condition                                                                  |
@@ -31,4 +56,4 @@ the companion will replace the following:
 
 
 > **Warning**  
-> The custom notifications ensure that only a "new" m117 is pushed to the user's device. Therefore, issuing another M117 with the exact same content won't issue a new notification. 
+> Custom notifications are designed to prevent redundant notifications. If you issue an additional `M117`/`MR_NOTIFY` with identical content to a previous notification, Mobileraker ensures that a new notification won't be triggered. This feature helps prevent unnecessary clutter in the user's notifications by only sending new and distinct information.
