@@ -1,477 +1,15 @@
 import argparse
 import asyncio
-import base64
-import hashlib
 import logging
 import os
-from asyncio import AbstractEventLoop, Lock
-from typing import Any, Dict, List, Optional, cast
-
-from dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
-from snapshot_client import SnapshotClient
-
-from util.configs import CompanionLocalConfig, CompanionRemoteConfig, printer_data_logs_dir
-from dtos.mobileraker.companion_request_dto import (DeviceRequestDto,
-                                                    FcmRequestDto,
-                                                    NotificationContentDto)
-from dtos.mobileraker.notification_config_dto import (DeviceNotificationEntry,
-                                                      NotificationSnap)
-from dtos.moonraker.printer_objects import (DisplayStatus, PrintStats, ServerInfo,
-                                            VirtualSDCard)
-from util.functions import get_software_version, is_valid_uuid
-from util.i18n import (replace_placeholders, translate,
-                       translate_replace_placeholders)
-from mobileraker_fcm import MobilerakerFcmClient
-from moonraker_client import MoonrakerClient
-from dtos.moonraker.printer_snapshot import PrinterSnapshot
-from util.logging import setup_logging
-
-
-class MobilerakerCompanion:
-    def __init__(
-            self,
-            jrpc: MoonrakerClient,
-            fcm_client: MobilerakerFcmClient,
-            snapshot_client: SnapshotClient,
-            printer_name: str,
-            loop: AbstractEventLoop,
-            companion_config: CompanionLocalConfig
-    ) -> None:
-        super().__init__()
-        self._jrpc: MoonrakerClient = jrpc
-        self._fcm_client: MobilerakerFcmClient = fcm_client
-        self._snapshot_client: SnapshotClient = snapshot_client
-        self.printer_name: str = printer_name
-        self.loop: AbstractEventLoop = loop
-        self.companion_config: CompanionLocalConfig = companion_config
-        self.init_done: bool = False
-        self.klippy_ready: bool = False
-        self.server_info: ServerInfo = ServerInfo()
-        self.print_stats: PrintStats = PrintStats()
-        self.display_status: DisplayStatus = DisplayStatus()
-        self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
-        self.last_request: Optional[DeviceRequestDto] = None
-        # TODO: Fetch this from a remote server for easier configuration :)
-        self.remote_config = CompanionRemoteConfig()
-        self.logger = logging.getLogger(
-            f'mobileraker.{printer_name.replace(".","_")}')
-        self._last_snapshot: Optional[PrinterSnapshot] = None
-        self._evaulate_noti_lock: Lock = Lock()
-        self._evaulate_m117_lock: Lock = Lock()
-
-        self._jrpc.register_method_listener(
-            'notify_status_update', lambda resp: self.loop.create_task(self._parse_notify_status_update(resp["params"][0])))
-
-        self._jrpc.register_method_listener(
-            'notify_klippy_ready', lambda resp: self._on_klippy_ready())
-
-        self._jrpc.register_method_listener(
-            'notify_klippy_shutdown', lambda resp: self._on_klippy_shutdown())
-
-        self._jrpc.register_method_listener(
-            'notify_klippy_disconnected', lambda resp: self._on_klippy_disconnected())
-
-    async def connect(self) -> None:
-        await self._jrpc.connect(lambda: self.loop.create_task(self._init_client()))
-
-    async def _init_client(self, no_try: int = 0) -> None:
-        self.logger.info("Client init started... Try#%i", no_try)
-        response, err = await self._jrpc.send_and_receive_method("server.info")
-        self._parse_server_info(response, err)
-        self.klippy_ready = self.server_info.klippy_state == 'ready'
-        if self.klippy_ready:
-            await self._query_printer_objects()
-
-            if not self.init_done:
-                self.init_done = True
-                await self._write_meta_into_db()
-                self.logger.info('Trigger initial Notifcation Evaluation')
-                self.evaluate_notification()
-            await self._subscribe_to_object_notifications()
-            self.logger.info("Client init completed")
-        else:
-            wait_for = min(pow(2, no_try + 1), 30 * 60)
-            self.logger.warning(
-                "Klippy was not ready. Trying again in %i seconds...", wait_for)
-            await asyncio.sleep(wait_for)
-            self.loop.create_task(
-                self._init_client(no_try=no_try + 1))
-
-    async def _write_meta_into_db(self):
-        client_info = CompanionMetaDataDto(version=get_software_version())
-        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": client_info.toJSON()})
-        if err:
-            self.logger.warning("Could not write version into moonraker DB")
-        else:
-            self.logger.info("Wrote version into database")
-
-    async def _parse_objects_response(self, message: Dict[str, Any], err=None):
-        self.logger.debug("Received objects response %s", message)
-        await self._parse_notify_status_update(cast(Dict, message["result"]["status"]))
-
-    async def _parse_notify_status_update(self, status_objects: Dict[str, Any]):
-        self.logger.debug("Received status update for %s", status_objects)
-        for key, object_data in status_objects.items():
-            if key == "print_stats":
-                await self._parse_print_stats_update(object_data)
-            elif key == "display_status":
-                old = self.display_status
-                await self._parse_display_status_update(object_data)
-                # handle custom/m117 notifications here!
-                if old.message != self.display_status.message:
-                    self.evaluate_m117()
-
-            elif key == "virtual_sdcard":
-                await self._parse_virtual_sdcard_update(object_data)
-        self.logger.debug('Src: _parse_notify_status_update')
-        self.evaluate_notification()
-
-    def _parse_server_info(self, message: Dict[str, Any], err=None):
-        self.logger.info("Received Server Info")
-        self.server_info = self.server_info.updateWith(message['result'])
-
-    async def _parse_print_stats_update(self, print_stats):
-        self.print_stats = self.print_stats.updateWith(print_stats)
-
-    async def _parse_display_status_update(self, display_status):
-        self.display_status = self.display_status.updateWith(display_status)
-
-    async def _parse_virtual_sdcard_update(self, virtual_sdcard):
-        self.virtual_sdcard = self.virtual_sdcard.updateWith(virtual_sdcard)
-
-    async def _query_printer_objects(self):
-        self.logger.info("Querying printer Objects")
-        params = {
-            "objects": {
-                "print_stats": None,
-                # "display_status": None,
-                "virtual_sdcard": None
-            }
-        }
-        response, err = await self._jrpc.send_and_receive_method("printer.objects.query", params)
-        await self._parse_objects_response(response, err)
-
-    async def _subscribe_to_object_notifications(self):
-        self.logger.info("Subscribing to printer Objects")
-        params = {
-            "objects": {
-                "print_stats": None,
-                "display_status": None,
-                "virtual_sdcard": None
-            }
-        }
-        await self._jrpc.send_method("printer.objects.subscribe", self._parse_objects_response, params)
-
-    def _on_klippy_ready(self):
-        self.logger.info("Klippy has reported a ready state")
-        self.loop.create_task(self._init_client())
-
-    def _on_klippy_shutdown(self):
-        self.logger.info("Klippy has reported a shutdown state")
-        self.klippy_ready = False
-        self.logger.debug('Src: _on_klippy_shutdown')
-        self.evaluate_notification(True)
-
-    def _on_klippy_disconnected(self):
-        self.logger.info(
-            "Moonraker's connection to Klippy has terminated/disconnected")
-        self.klippy_ready = False
-
-    def _take_snapshot(self) -> PrinterSnapshot:
-        snapshot = PrinterSnapshot(
-            self.print_stats.state if self.klippy_ready else "error")
-
-        snapshot.filename = self.print_stats.filename
-        snapshot.m117 = self.display_status.message
-        snapshot.m117_hash = hashlib.sha256(snapshot.m117.encode(
-            "utf-8")).hexdigest() if snapshot.m117 is not None else ''
-        if self.print_stats.state == "printing":
-            snapshot.progress = round(self.virtual_sdcard.progress*100)
-            snapshot.printing_duration = self.print_stats.print_duration
-        self.logger.info(f'Took a PrinterSnapshot: {snapshot}')
-        return snapshot
-
-    async def update_snap_in_fcm_cfg(self, machine_id: str, notification_snap: NotificationSnap) -> None:
-        self.logger.info(
-            f'Updating snap in FCM Cfg for {machine_id} {notification_snap.progress}, {notification_snap.state}')
-        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}.snap", "value": notification_snap.toJSON()})
-        #self.logger.info(f'Snap resp: {response}')
-
-    async def update_snap_m117_in_fcm_cfg(self, machine_id: str, m117_hash: str) -> None:
-        self.logger.info(
-            f'Updating snap.m117 in FCM Cfg for {machine_id} {m117_hash}')
-        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}.snap.m117", "value": m117_hash})
-
-    async def remove_old_fcm_cfg(self, machine_id: str) -> None:
-        response, err = await self._jrpc.send_and_receive_method("server.database.delete_item",
-                                                                 {"namespace": "mobileraker", "key": f"fcm.{machine_id}"})
-
-    async def fetch_fcm_cfgs(self) -> List[DeviceNotificationEntry]:
-        response, err = await self._jrpc.send_and_receive_method("server.database.get_item",
-                                                                 {"namespace": "mobileraker", "key": "fcm"})
-        cfgs = []
-
-        if not err:
-            rawCfg = response["result"]["value"]
-            for entry_id in rawCfg:
-                if not is_valid_uuid(entry_id):
-                    continue
-
-                deviceJson = rawCfg[entry_id]
-                if ('fcmToken' not in deviceJson):
-                    await self.remove_old_fcm_cfg(entry_id)
-                    continue
-                deviceJson['machineId'] = entry_id
-                cfg = DeviceNotificationEntry.fromJSON(deviceJson)
-                cfgs.append(cfg)
-
-        self.logger.info('Got Cfgs!')
-        return cfgs
-
-    async def fetch_printer_id(self) -> Optional[str]:
-        response, err = await self._jrpc.send_and_receive_method("server.database.get_item",
-                                                                 {"namespace": "mobileraker", "key": "printerId"})
-        if not err:
-            return response["result"]["value"]
-        return None
-
-    def evaluate_notification(self, force: bool = False) -> None:
-        if not self.init_done and not force:
-            return
-
-        self.loop.create_task(
-            self.task_evaluate_notification(force))
-
-    # Calculate if it should push a new notification!
-    async def task_evaluate_notification(self, force: bool = False) -> None:
-        if not self.init_done and not force:
-            return
-        async with self._evaulate_noti_lock:
-            snapshot = self._take_snapshot()
-
-            # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
-
-            if not self._should_trigger_notification_evaluation(snapshot):
-                return
-            self.logger.info(
-                'New Snapshot passed last Snapshot validation. LastSnap: %s', self._last_snapshot)
-            self._last_snapshot = snapshot
-
-            dtos = []
-            cfgs = await self.fetch_fcm_cfgs()
-            #self.logger.info(f'Yes i am here! - {snapshot.progress}')
-            self.logger.info(f'Got {len(cfgs)} configs')
-            for c in cfgs:
-                self.logger.info(
-                    f'Evaluate for machineID {c.machine_id}, snap: {c.snap.state} {c.snap.progress}, cfg: {c.settings.progress_config}  {c.settings.state_config}')
-                notifications = []
-                if not c.fcm_token:
-                    continue
-
-                state_noti = self._state_notification(c, snapshot)
-                if state_noti is not None:
-                    notifications.append(state_noti)
-                    self.logger.info(
-                        f'StateNoti: {state_noti.title} - {state_noti.body}')
-
-                progress_noti = self._progress_notification(
-                    c, snapshot)
-                if progress_noti is not None:
-                    notifications.append(progress_noti)
-                    self.logger.info(
-                        f'ProgressNoti: {progress_noti.title} - {progress_noti.body}')
-
-                self.logger.debug(
-                    f'Notifications for {c.fcm_token}: {notifications}')
-
-                self.logger.info(
-                    f'{len(notifications)} Notifications for machineID: {c.machine_id}, state:{state_noti is not None}, proggress:{progress_noti is not None}')
-                if notifications:
-                    noti_snap = NotificationSnap()
-                    # self.logger.info(f'-- {snapshot.progress//c.settings.progress_config} * {c.settings.progress_config} = {((snapshot.progress//c.settings.progress_config)*c.settings.progress_config, 2)}')
-                    noti_snap.progress = 0 if snapshot.print_state != 'printing' and snapshot.print_state != 'paused' else c.snap.progress \
-                        if progress_noti is None else snapshot.progress - (snapshot.progress % c.settings.progress_config) if snapshot.progress is not None else 0
-                    noti_snap.state = snapshot.print_state
-
-                    await self.update_snap_in_fcm_cfg(c.machine_id, noti_snap)
-                    dto = DeviceRequestDto(
-                        printer_id=c.machine_id,
-                        token=c.fcm_token,
-                        notifcations=notifications
-                    )
-                    dtos.append(dto)
-                    #self.logger.info(f'Dto: {dto.toJSON()}')
-            # just ensure the next update is in 5% steps at least!
-            if snapshot.progress is not None:
-                snapshot.progress = snapshot.progress - \
-                    (snapshot.progress % self.remote_config.increments)
-
-            await self._push_and_clear_faulty(dtos)
-            self.logger.info('---- Done wiht evaluate notification Task! ----')
-
-    def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
-
-        # check if we even need to issue a new notification!
-        if cfg.snap.state == cur_snap.print_state:
-            return None
-
-        # check if new print state actually should issue a notification trough user configs
-        if cur_snap.print_state not in cfg.settings.state_config:
-            return None
-
-        self.logger.info(
-            f'Got a state transition: {cfg.snap.state} -> {cur_snap.print_state}')
-
-        # collect title and body to translate it
-        title = translate_replace_placeholders(
-            'state_title', cfg, cur_snap, self.companion_config)
-        body = None
-        if cur_snap.print_state == "printing":
-            body = "state_printing_body"
-        elif cur_snap.print_state == "paused":
-            body = "state_paused_body"
-        elif cur_snap.print_state == "complete":
-            body = "state_completed_body"
-        elif cur_snap.print_state == "error":
-            body = "state_error_body"
-        elif cur_snap.print_state == "standby":
-            body = "state_standby_body"
-
-        if title is None or body is None:
-            raise Exception("Body or Title are none!")
-
-        body = translate_replace_placeholders(
-            body, cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body, self._take_image())
-
-    def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
-
-        # only issue new progress notifications if the printer is printing
-        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
-        if cur_snap.print_state != "printing" or cur_snap.progress == 100 or cur_snap.progress is None:
-            return None
-
-        self.logger.info(
-            f'ProgressNoti:: cfg.progress.config: {cur_snap.progress} - {cfg.snap.progress} = {(cur_snap.progress - cfg.snap.progress)} < {max(self.remote_config.increments, cfg.settings.progress_config)}')
-
-        # If progress notifications are disabled, skip it!
-        if cfg.settings.progress_config == -1:
-            return None
-
-        # ensure the progress threshhold of the user's cfg is reached, but only if the client already received an initial state and progress notification!
-        if cfg.snap.state == "printing" and (cur_snap.progress - cfg.snap.progress) < max(self.remote_config.increments, cfg.settings.progress_config):
-            return None
-
-        title = translate_replace_placeholders(
-            'print_progress_title', cfg, cur_snap, self.companion_config)
-        body = translate_replace_placeholders(
-            'print_progress_body', cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body, self._take_image())
-
-    async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
-        if dtos:
-            request = FcmRequestDto(dtos)
-            response = self._fcm_client.push(request)
-            # todo: remove faulty token lol
-
-    def _take_image(self) -> Optional[str]:
-        img_encoded = None
-        if self.companion_config.include_snapshot:
-            img_bytes = self._snapshot_client.takeSnapshot()
-            if img_bytes is not None:
-                img_encoded = base64.b64encode(img_bytes).decode("ascii")
-        return img_encoded
-
-    def evaluate_m117(self) -> None:
-        if not self.init_done:
-            return
-
-        self.loop.create_task(
-            self.task_evaluate_m117_notification())
-
-    async def task_evaluate_m117_notification(self):
-        if not self.init_done:
-            return
-        async with self._evaulate_m117_lock:
-            self.logger.info('Evaluating m117 notifications!')
-            dtos = []
-            snapshot = self._take_snapshot()
-            cfgs = await self.fetch_fcm_cfgs()
-
-            for c in cfgs:
-                if not c.fcm_token:
-                    continue
-                notification = self._m117_notification(c, snapshot)
-                if c.snap.m117 != snapshot.m117_hash:
-                    await self.update_snap_m117_in_fcm_cfg(c.machine_id, snapshot.m117_hash)
-
-                if notification is None:
-                    continue
-
-                dto = DeviceRequestDto(
-                    printer_id=c.machine_id,
-                    token=c.fcm_token,
-                    notifcations=[notification]
-                )
-                dtos.append(dto)
-            await self._push_and_clear_faulty(dtos)
-
-    def _m117_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
-        # skip if m117 is empty/none
-        if cur_snap.m117 is None or not cur_snap.m117:
-            return None
-
-        # only issue if
-        if not cur_snap.m117.startswith('$MR$:'):
-            return None
-
-        # only evaluate if we have a new m117/hash
-        if cfg.snap.m117 == cur_snap.m117_hash:
-            return None
-
-        msg = cur_snap.m117[5:]
-        if not msg:
-            return None
-
-        split = msg.split('|')
-
-        has_title = (len(split) == 2)
-
-        title = split[0] if has_title else translate(cfg.language,
-                                                     'm117_custom_title')
-        title = replace_placeholders(
-            title, cfg, cur_snap, self.companion_config)
-        body = split[1] if has_title else split[0]
-        body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
-
-        self.logger.info(
-            f'Got M117/Custom: {msg}: {title} - {body}')
-
-        return NotificationContentDto(333, f'{cfg.machine_id}-m117',
-                                      title, body, self._take_image())
-
-    # True: Trigger new eval
-    # False: Skip this eval
-    def _should_trigger_notification_evaluation(self, snapshot: PrinterSnapshot) -> bool:
-        if self._last_snapshot is None:
-            return True
-
-        if self._last_snapshot.print_state != snapshot.print_state:
-            return True
-
-        last_progress = self._last_snapshot.progress
-        cur_progress = snapshot.progress
-
-        if last_progress == cur_progress:
-            return False
-
-        if last_progress is None or cur_progress is None:
-            return True
-
-        return (cur_progress - last_progress) >= self.remote_config.increments
+from mobileraker.client.mobileraker_fcm_client import MobilerakerFcmClient
+from mobileraker.client.moonraker_client import MoonrakerClient
+from mobileraker.client.snapshot_client import SnapshotClient
+from mobileraker.mobileraker_companion import MobilerakerCompanion
+from mobileraker.service.data_sync_service import DataSyncService
+from mobileraker.util.configs import CompanionLocalConfig, printer_data_logs_dir
+from mobileraker.util.functions import get_software_version
+from mobileraker.util.logging import setup_logging
 
 
 def main() -> None:
@@ -498,11 +36,16 @@ def main() -> None:
 
     logging.info(f"MobilerakerCompanion version: {version}")
 
-    configfile = os.path.normpath(os.path.expanduser(cmd_line_args.configfile))
+    passed_config_location = os.path.normpath(
+        os.path.expanduser(cmd_line_args.configfile))
 
-    local_config = CompanionLocalConfig(configfile)
+    local_config = CompanionLocalConfig(passed_config_location)
 
     event_loop = asyncio.get_event_loop()
+    fcmc = MobilerakerFcmClient(
+        # 'http://127.0.0.1:8080',
+        'https://mobileraker.eliteschw31n.de',
+        event_loop)
     try:
         printers = local_config.printers
         for printer_name in printers:
@@ -512,24 +55,27 @@ def main() -> None:
                 p_config['moonraker_uri'],
                 p_config['moonraker_api_key'],
                 event_loop)
-            fcmc = MobilerakerFcmClient(
-                # 'http://127.0.0.1:8080',
-                'https://mobileraker.eliteschw31n.de',
-                event_loop)
+
             snc = SnapshotClient(
                 p_config['snapshot_uri'],
                 p_config['snapshot_rotation'],
             )
 
+            dsd = DataSyncService(
+                jrpc=jrpc,
+                loop=event_loop,
+            )
+
             client = MobilerakerCompanion(
                 jrpc=jrpc,
+                data_sync_service=dsd,
                 fcm_client=fcmc,
                 snapshot_client=snc,
                 printer_name=printer_name,
                 loop=event_loop,
-                companion_config=local_config)
-            event_loop.create_task(client.connect())
-
+                companion_config=local_config,
+            )
+            event_loop.create_task(client.start())
         event_loop.run_forever()
     finally:
         event_loop.close()

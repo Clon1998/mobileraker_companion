@@ -40,6 +40,7 @@ def setup_logging(log_file, software_version):
     coloredlogs.install(
         logger=root_logger, fmt=f'%(asctime)s %(name)s %(levelname)s %(message)s')
 
+    print(f"Logging to file: {os.path.normpath(log_file)}")
     try:
         fh = MobilerakerCompanionLoggingHandler(
             software_version, log_file, maxBytes=4194304, backupCount=3)

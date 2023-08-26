@@ -67,14 +67,6 @@ install_dependencies() {
     esac
 }
 
-# install_dependencies()
-# {
-#     sudo apt update
-#     sudo apt install -y \
-#             git \
-#             zlib1g \
-#             libtiff5 libjpeg62-turbo libopenjp2-7
-# }
 
 create_virtualenv()
 {
