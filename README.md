@@ -20,7 +20,7 @@ Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling p
     - [Custom Notifications](#custom-notifications)
     - [Visualization of the architecture](#visualization-of-the-architecture)
   - [Changelog](#changelog)
-    - [\[v0.4.0\] - 2023-08-xx](#v040---2023-08-xx)
+    - [\[v0.4.0\] - 2023-08-26](#v040---2023-08-26)
     - [\[v0.3.0\] - 2023-03-29](#v030---2023-03-29)
     - [\[v0.2.1\] - 2022-07-07](#v021---2022-07-07)
 ## Companion - Installation
@@ -184,12 +184,13 @@ Learn more in the [Custom Notification](docs/Custom_Notifications.md) documentat
 
 ## Changelog
 
-### [v0.4.0] - 2023-08-xx
+### [v0.4.0] - 2023-08-26
 
 - Restructured the project to make it easier to maintain and extend
 - Improved the accurarcy for the remaining_time, progress and eta
 - Renamed the notification placeholder `remaining` -> `remaining_avg`
 - Added new custom notification placeholders: `remaining_file, remaining_filament, remaining_slicer, cur_layer, max_layer`
+- Added the ability to use custom_notifcations via a custom macro. See [Custom Notification](docs/Custom_Notifications.md#using-the-mr_notify-custom-macro) documentation.
 
 ### [v0.3.0] - 2023-03-29
 
