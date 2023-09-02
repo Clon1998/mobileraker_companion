@@ -5,6 +5,7 @@ PYTHONDIR="${MOBILERAKER_VENV:-${HOME}/mobileraker-env}"
 LOG_PATH="${MOBILERAKER_LOG_PATH}"
 REBUILD_ENV="${REBUILD_ENV:-n}"
 FORCE_DEFAULTS="${FORCE_DEFAULTS:-n}"
+INSTALL_LIBJPEG="${INSTALL_LIBJPEG:-n}"
 
 SYSTEMDDIR="/etc/systemd/system"
 
@@ -33,6 +34,10 @@ detect_distribution() {
 
 # Function to install dependencies based on distribution
 install_dependencies() {
+    if [ $INSTALL_LIBJPEG != "y" ]; then
+        return
+    fi
+
     case $DISTRIBUTION in
         "raspbian" | "debian")
             if [ "$(id -u)" -ne 0 ]; then
@@ -164,11 +169,13 @@ SRCDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. && pwd )"
 LAUNCH_CMD="${PYTHONDIR}/bin/python ${SRCDIR}/mobileraker.py"
 
 # Parse command line arguments
-while getopts "rfc:l:" arg; do
+while getopts "rfl:j" arg; do
     case $arg in
         r) REBUILD_ENV="y";;
         f) FORCE_DEFAULTS="y";;
         l) LOG_PATH=$OPTARG;;
+        j) INSTALL_LIBJPEG="y";; 
+
     esac
 done
 
