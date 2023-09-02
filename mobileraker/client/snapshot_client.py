@@ -39,9 +39,15 @@ class SnapshotClient:
             res.raise_for_status()
 
             image = Image.open(BytesIO(res.content)).convert("RGB")
+            # resize the image if it the width is larger than 1024px
+            if image.width > 1024:
+                image = image.resize((1024, int(image.height * (1024 / image.width))))
+            
+
+
             image = image.rotate(self.rotation)
             buffered = BytesIO()
-            image.save(buffered, format="JPEG")
+            image.save(buffered, format="JPEG", optimize=True, quality=85)
             self.logger.info("Took webcam snapshot! Rotating it using rotation %i°", self.rotation)
             return buffered.getvalue()
         except requests.exceptions.ConnectionError:
