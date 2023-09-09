@@ -1,4 +1,5 @@
 from asyncio import AbstractEventLoop, Lock
+import asyncio
 import base64
 import logging
 from typing import List, Optional
@@ -61,8 +62,15 @@ class MobilerakerCompanion:
         await self._jrpc.connect()
 
     def _create_eval_task(self, snapshot: PrinterSnapshot) -> None:
-        self.loop.create_task(
-            self._evaluate(snapshot))
+        self.loop.create_task(self._evaluate_with_timeout(snapshot))
+
+    async def _evaluate_with_timeout(self, snapshot: PrinterSnapshot) -> None:
+        try:
+            task = asyncio.create_task(self._evaluate(snapshot))
+            await asyncio.wait_for(task, timeout=60)
+        except asyncio.TimeoutError:
+            self._logger.warning(
+                'Evaluation task timed out after 60 seconds!')
 
     async def _evaluate(self, snapshot: PrinterSnapshot) -> None:
         async with self._evaulate_noti_lock:
@@ -132,14 +140,18 @@ class MobilerakerCompanion:
 
     async def _update_meta_data(self) -> None:
         client_info = CompanionMetaDataDto(version=get_software_version())
-        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": "fcm.client", "value": client_info.toJSON()})
-        if err:
+        try:
+            _, k_err = await self._jrpc.send_and_receive_method("server.database.post_item",
+                                                                {"namespace": "mobileraker", "key": "fcm.client", "value": client_info.toJSON()})
+            if k_err:
+                self._logger.warning(
+                    "Could not write companion meta into moonraker database, moonraker returned error %s", k_err)
+            else:
+                self._logger.info(
+                    "Updated companion meta data in moonraker database")
+        except (ConnectionError, asyncio.TimeoutError) as err:
             self._logger.warning(
-                "Could not write companion meta into moonraker database")
-        else:
-            self._logger.info(
-                "Updated companion meta data in moonraker database")
+                "Could not write companion meta into moonraker database, %s: %s", type(err), err)
 
     def _fulfills_evaluation_threshold(self, snapshot: PrinterSnapshot) -> bool:
         if self._last_snapshot is None:
@@ -166,30 +178,44 @@ class MobilerakerCompanion:
         return normalized_progress_interval_reached(last_progress, cur_progress, self.remote_config.increments)
 
     async def _fetch_app_cfgs(self) -> List[DeviceNotificationEntry]:
-        response, err = await self._jrpc.send_and_receive_method("server.database.get_item",
-                                                                 {"namespace": "mobileraker", "key": "fcm"})
-        cfgs = []
-        if not err:
-            rawCfg = response["result"]["value"]
-            for entry_id in rawCfg:
+        try:
+            response, k_error = await self._jrpc.send_and_receive_method("server.database.get_item",
+                                                                         {"namespace": "mobileraker", "key": "fcm"})
+            if k_error:
+                self._logger.warning(
+                    "Could not fetch app cfgs from moonraker, moonraker returned error %s", k_error)
+                return []
+            cfgs = []
+            raw_cfgs = response["result"]["value"]
+            for entry_id in raw_cfgs:
                 if not is_valid_uuid(entry_id):
                     continue
 
-                deviceJson = rawCfg[entry_id]
-                if ('fcmToken' not in deviceJson):
+                device_json = raw_cfgs[entry_id]
+                if ('fcmToken' not in device_json):
                     await self._remove_old_fcm_cfg(entry_id)
                     continue
-                cfg = DeviceNotificationEntry.fromJSON(entry_id, deviceJson)
+                cfg = DeviceNotificationEntry.fromJSON(
+                    entry_id, device_json)
                 cfgs.append(cfg)
 
-        self._logger.info('Fetched %i app Cfgs!', len(cfgs))
-        return cfgs
+            self._logger.info('Fetched %i app Cfgs!', len(cfgs))
+            return cfgs
+        except (ConnectionError, asyncio.TimeoutError) as err:
+            self._logger.warning(
+                "Could not fetch app cfgs from moonraker, %s: %s", type(err), err)
+            return []
 
     async def _remove_old_fcm_cfg(self, machine_id: str) -> None:
-        await self._jrpc.send_method(
-            method="server.database.delete_item",
-            params={"namespace": "mobileraker", "key": f"fcm.{machine_id}"},
-        )
+        try:
+            await self._jrpc.send_method(
+                method="server.database.delete_item",
+                params={"namespace": "mobileraker",
+                        "key": f"fcm.{machine_id}"},
+            )
+        except (ConnectionError, asyncio.TimeoutError)as err:
+            self._logger.warning(
+                "Could not remove old fcm cfg for %s, %s", machine_id, err)
 
     def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
 
@@ -334,38 +360,41 @@ class MobilerakerCompanion:
                 "Could not push notifications to mobileraker backend, %s: %s", type(err), err)
 
     async def _update_app_snapshot(self, cfg: DeviceNotificationEntry, printer_snap: PrinterSnapshot) -> None:
-        last = cfg.snap
+        try:
+            last = cfg.snap
 
-        progress_update = None
-        if printer_snap.print_state not in ['printing', 'paused']:
-            progress_update = 0
-        elif (last.progress != printer_snap.progress
-              and printer_snap.progress is not None
-              and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
-                   or printer_snap.progress < last.progress)):
-            progress_update = printer_snap.progress
+            progress_update = None
+            if printer_snap.print_state not in ['printing', 'paused']:
+                progress_update = 0
+            elif (last.progress != printer_snap.progress
+                  and printer_snap.progress is not None
+                  and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
+                       or printer_snap.progress < last.progress)):
+                progress_update = printer_snap.progress
 
-        updated = last.copy_with(
-            state=printer_snap.print_state if last.state != printer_snap.print_state else None,
-            progress=progress_update,
-            m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
-            gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None
-        )
+            updated = last.copy_with(
+                state=printer_snap.print_state if last.state != printer_snap.print_state else None,
+                progress=progress_update,
+                m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
+                gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None
+            )
 
-        if updated == last:
-            self._logger.info(
-                "No snap update necessary for %s", cfg.machine_id)
-            return
+            if updated == last:
+                self._logger.info(
+                    "No snap update necessary for %s", cfg.machine_id)
+                return
 
-        self._logger.info('Updating snap in FCM Cfg for %s: %s',
-                          cfg.machine_id, updated)
-        response, err = await self._jrpc.send_and_receive_method("server.database.post_item",
-                                                                 {"namespace": "mobileraker", "key": f"fcm.{cfg.machine_id}.snap", "value": updated.toJSON()})
-        if err:
-            self._logger.error(
-                'Error updating snap in FCM Cfg for %s: %s', cfg.machine_id, err)
-        else:
-            self._logger.info(
-                'Updated snap in FCM Cfg for %s: %s', cfg.machine_id, response)
+            self._logger.info('Updating snap in FCM Cfg for %s: %s',
+                              cfg.machine_id, updated)
+            response, k_err = await self._jrpc.send_and_receive_method("server.database.post_item",
+                                                                       {"namespace": "mobileraker", "key": f"fcm.{cfg.machine_id}.snap", "value": updated.toJSON()})
+            if k_err:
+                self._logger.warning(
+                    "Could not update snap in FCM Cfg for %s, moonraker returned error %s", cfg.machine_id, k_err)
+            else:
+                self._logger.info(
+                    'Updated snap in FCM Cfg for %s: %s', cfg.machine_id, response)
 
-        return
+        except (ConnectionError, asyncio.TimeoutError) as err:
+            self._logger.warning(
+                "Could not update snap in FCM Cfg for %s, %s: %s", cfg.machine_id, type(err), err)

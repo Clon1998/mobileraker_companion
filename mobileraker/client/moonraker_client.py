@@ -3,7 +3,7 @@ import json
 import logging
 import random
 from asyncio import AbstractEventLoop, Future, Task
-from typing import Any, Callable, Coroutine, Dict, List, Optional, cast
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, cast
 
 
 from websockets import client, exceptions, typing, connection
@@ -67,7 +67,7 @@ class MoonrakerClient:
                 self._notify_connection_listeners(False)
                 continue
 
-    async def send_method(self, method: str, callback: Optional[Callable[[Dict[str, Any], Optional[str]], Any]] = None, params: Optional[dict] = None) -> int:
+    async def send_method(self, method: str, callback: Optional[Callable[[Dict[str, Any], Optional[str]], Any]] = None, params: Optional[dict] = None, timeout: float = 10.0) -> int:
 
         '''
         Sends a JSON-RPC method request through the established WebSocket connection.
@@ -97,10 +97,11 @@ class MoonrakerClient:
             self._req_cb[req_dict["id"]] = callback
 
         self._logger.debug("Sending message %s", message_json)
-        await self._websocket.send(message_json)
+        await asyncio.wait_for(self._websocket.send(message_json), timeout=timeout)
         return req_dict["id"]
 
-    async def send_and_receive_method(self, method: str, params: Optional[dict] = None):
+    async def send_and_receive_method(self, method: str, params: Optional[dict] = None, timeout: float = 10.0) -> Tuple[
+            Dict[str, Any], Optional[str]]:
         '''
         Sends a JSON-RPC method request through the established WebSocket connection
         and waits for the corresponding response.
@@ -134,8 +135,8 @@ class MoonrakerClient:
         self._req_blocking[m_id] = response_future
 
         self._logger.debug("Sending message (Blocking) %s", message_json)
-        await self._websocket.send(message_json)
-        return await response_future
+        await asyncio.wait_for(self._websocket.send(message_json), timeout=timeout)
+        return await asyncio.wait_for(response_future, timeout=timeout)
 
     def register_method_listener(self, method: str, callback: Callable) -> None:
         '''

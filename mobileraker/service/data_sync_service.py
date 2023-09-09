@@ -1,4 +1,5 @@
 from asyncio import AbstractEventLoop, sleep
+import asyncio
 import hashlib
 import logging
 from typing import Any, Callable, Dict, List, Optional, cast
@@ -57,7 +58,7 @@ class DataSyncService:
 
         self._jrpc.register_method_listener(
             'notify_klippy_disconnected', lambda resp: self._on_klippy_disconnected())
-        
+
         self._jrpc.register_method_listener(
             'notify_gcode_response', lambda resp: self._on_gcode_response(resp["params"][0]))
 
@@ -132,7 +133,6 @@ class DataSyncService:
         self._queried_for_session = False
         self._notify_listeners()
 
-
     def _on_gcode_response(self, response: str) -> None:
         '''
         Handle theGcode Response event.
@@ -142,7 +142,7 @@ class DataSyncService:
         '''
         # strip "// " from response as it is always part of the Gcode Response (https://www.klipper3d.org/Command_Templates.html?h=action_respond_info#actions)
         response = response[3:]
-        
+
         self._logger.debug(
             "Received an Gcode Response from Klippy: %s", response)
         self.gcode_response = response
@@ -155,10 +155,18 @@ class DataSyncService:
         Returns:
             None
         '''
-        self._logger.info("Syncing klippy Objects")
-        response, err = await self._jrpc.send_and_receive_method("server.info")
-        self.server_info = self.server_info.updateWith(response['result'])
-        self.klippy_ready = self.server_info.klippy_state == 'ready'
+        try:
+            self._logger.info("Syncing klippy Objects")
+            response, k_err = await self._jrpc.send_and_receive_method("server.info")
+            if k_err:
+                self._logger.warning("Could not sync klippy data. Moonraker returned error %s", k_err)
+                return
+
+            self._logger.info("Received server info: %s", response)
+            self.server_info = self.server_info.updateWith(response['result'])
+            self.klippy_ready = self.server_info.klippy_state == 'ready'
+        except (asyncio.TimeoutError, ConnectionError) as err:
+            self._logger.error("Could not sync klippy data: %s", err)
 
     async def _sync_printer_data(self) -> None:
         '''
@@ -167,18 +175,24 @@ class DataSyncService:
         Returns:
             None
         '''
-        self._logger.info("Syncing printer Objects")
-        params = {
-            "objects": {
-                "print_stats": None,
-                # "display_status": None,
-                "virtual_sdcard": None,
-                "toolhead": None,
-                "gcode_move": None,
+        try:
+            self._logger.info("Syncing printer Objects")
+            params = {
+                "objects": {
+                    "print_stats": None,
+                    # "display_status": None,
+                    "virtual_sdcard": None,
+                    "toolhead": None,
+                    "gcode_move": None,
+                }
             }
-        }
-        response, err = await self._jrpc.send_and_receive_method("printer.objects.query", params)
-        self._parse_objects(response["result"]["status"])
+            response, k_err = await self._jrpc.send_and_receive_method("printer.objects.query", params)
+            if k_err:
+                self._logger.warning("Could not sync printer data. Moonraker returned error %s", k_err)
+                return
+            self._parse_objects(response["result"]["status"])
+        except (asyncio.TimeoutError, ConnectionError) as err:
+            self._logger.error("Could not sync printer data: %s", err)
 
     async def _sync_current_file(self) -> None:
         '''
@@ -251,14 +265,18 @@ class DataSyncService:
             await self._resync(no_try=no_try + 1)
 
     async def _fetch_gcode_meta(self, file_name: str) -> Optional[GCodeFile]:
-        self._logger.info("Fetching metadata for %s", file_name)
-        meta, err = await self._jrpc.send_and_receive_method('server.files.metadata', {'filename': file_name})
-        if err:
+        try:
+            self._logger.info("Fetching metadata for %s", file_name)
+            meta,  k_err = await self._jrpc.send_and_receive_method('server.files.metadata', {'filename': file_name})
+            if k_err:
+                self._logger.warning("Could not fetch metadata for %s. Moonraker returned error %s", file_name, k_err)
+                return None
+            self._logger.debug("Metadata for %s: %s", file_name, meta)
+            return GCodeFile.from_json(meta['result'])
+        except (asyncio.TimeoutError, ConnectionError) as err:
             self._logger.error(
                 "Could not fetch metadata for %s: %s", file_name, err)
             return None
-        self._logger.debug("Metadata for %s: %s", file_name, meta)
-        return GCodeFile.from_json(meta['result'])
 
     async def resync(self) -> None:
         '''
@@ -267,21 +285,26 @@ class DataSyncService:
         Returns:
             None
         '''
-        self._logger.info("Doing a (Re)Sync with moonraker")
-        self.server_info: ServerInfo = ServerInfo()
-        self.print_stats: PrintStats = PrintStats()
-        self.toolhead: Toolhead = Toolhead()
-        self.gcode_move: GCodeMove = GCodeMove()
-        self.display_status: DisplayStatus = DisplayStatus()
-        self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
+        try:
+            self._logger.info("Doing a (Re)Sync with moonraker")
+            self.server_info: ServerInfo = ServerInfo()
+            self.print_stats: PrintStats = PrintStats()
+            self.toolhead: Toolhead = Toolhead()
+            self.gcode_move: GCodeMove = GCodeMove()
+            self.display_status: DisplayStatus = DisplayStatus()
+            self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
 
-        await self._resync()
-        # We only subscribe for updates if Klippy is ready
-        if self.klippy_ready and not self._queried_for_session:
-            self._queried_for_session = True
-            await self._subscribe_for_object_updates()
+            await self._resync()
+            # We only subscribe for updates if Klippy is ready
+            if self.klippy_ready and not self._queried_for_session:
+                self._queried_for_session = True
+                await self._subscribe_for_object_updates()
 
-        self._logger.info("(Re)Sync completed")
+            self._logger.info("(Re)Sync completed")
+        except asyncio.TimeoutError:
+            self._logger.warning("Timeout error occured while resyncing...")
+        except ConnectionError:
+            self._logger.warning("Connection error occured while resyncing...")
 
     def take_snapshot(self) -> PrinterSnapshot:
         '''
