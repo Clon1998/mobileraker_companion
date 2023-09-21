@@ -40,6 +40,18 @@ _mobileraker_de: Dict[str, str] = {
 _mobileraker_hu: Dict[str, str] = {
 
 }
+    
+_mobileraker_uk: Dict[str, str] = {
+    'print_progress_title': 'Прогрес друку $printer_name',
+    'print_progress_body': '$progress, ETA: $a_eta, Шар: $cur_layer/$max_layer',
+    'state_title': 'Стан $printer_name змінився',
+    'state_printing_body': 'Почав друкувати файл: "$file"',
+    'state_paused_body': 'Призупинено під час друку файлу: "$file"',
+    'state_completed_body': 'Друк завершено: "$file"',
+    'state_error_body': 'Помилка під час друку файлу: "$file"',
+    'state_standby_body': 'Принтер у режимі очікування',
+    'm117_custom_title': 'Сповіщення користувача'
+}
 
 _mobileraker_chtw: Dict[str, str] = {
 
@@ -54,6 +66,7 @@ languages: Dict[str, Dict[str, str]] = {
     'de': _mobileraker_de,
     'en': _mobileraker_en,
     'hu': _mobileraker_hu,
+    'uk': _mobileraker_uk,
     'cn': _mobileraker_cnch,
     'cntw': _mobileraker_chtw,
 
