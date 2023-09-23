@@ -36,7 +36,7 @@ _mobileraker_de: Dict[str, str] = {
     'm117_custom_title': 'Nutzer-Benachrichtigung'
 }
 
-_mobileraker_pt: Dict[str, str] = {
+_mobileraker_ptbr: Dict[str, str] = {
     'print_progress_title': 'Progresso de Impressão de $printer_name',
     'print_progress_body': '$progresso, ETA: $a_eta',
     'state_title': 'Status de $printer_name Alterado',
