@@ -1,4 +1,3 @@
-from ctypes import cast
 from typing import Any, Dict, List, Optional
 
 # "5f4d11e8-ad41-4126-88ff-7593b68555d9": {
@@ -22,6 +21,11 @@ from typing import Any, Dict, List, Optional
 #     "snap": {
 #        "progress":0.0,
 #        "state": "standby"
+#     },
+#     "apns": {
+#       "created": "",
+#       "lastModified": "",
+#       "liveActivity": ""
 #     }
 # }
 
@@ -38,6 +42,7 @@ class DeviceNotificationEntry:
         self.language: str = 'en'
         self.settings: NotificationSettings
         self.snap: NotificationSnap
+        self.apns: Optional[APNs] = None
 
     @staticmethod
     def fromJSON(machine_id: str, json: Dict[str, Any]) -> 'DeviceNotificationEntry':
@@ -52,6 +57,7 @@ class DeviceNotificationEntry:
         cfg.settings = NotificationSettings.fromJSON(json['settings'])
         cfg.snap = NotificationSnap.fromJSON(
             json['snap']) if 'snap' in json and json['snap'] else NotificationSnap()
+        cfg.apns = APNs.fromJSON(json['apns']) if 'apns' in json and json['apns'] else None
 
         return cfg
 
@@ -145,10 +151,10 @@ class NotificationSnap:
             "state": self.state,
             "m117": self.m117
         }
-        
+
         if self.gcode_response is not None:
             data["gcode_response"] = self.gcode_response
-        
+
         return data
 
     def copy_with(self, progress: Optional[int] = None,
@@ -193,4 +199,57 @@ class NotificationSnap:
             self.state == other.state and
             self.m117 == other.m117 and
             self.gcode_response == other.gcode_response
+        )
+
+
+#     "apns": {
+#       "created":"",
+#       "lastModified":"",
+#       "liveActivity":
+#     }
+
+
+class APNs:
+    def __init__(self,
+                 liveActivity: str = '',
+                 ):
+        self.liveActivity: str = liveActivity
+
+    @staticmethod
+    def fromJSON(json: Dict[str, Any]) -> 'APNs':
+        apn = APNs()
+
+        apn.liveActivity = json['liveActivity'] if 'liveActivity' in json else ''
+
+        return apn
+
+    def toJSON(self) -> Dict[str, Any]:
+        data = {
+            "liveActivity": self.liveActivity
+        }
+
+        return data
+
+    def copy_with(self,
+                  liveActivity: Optional[str] = None,
+                  ) -> 'APNs':
+
+        copied_apns = APNs(
+            liveActivity=self.liveActivity if liveActivity is None else liveActivity
+        )
+
+        return copied_apns
+
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
+
+    def __eq__(self, other):
+        if not isinstance(other, APNs):
+            return False
+
+        return (
+            self.liveActivity == other.liveActivity
         )
