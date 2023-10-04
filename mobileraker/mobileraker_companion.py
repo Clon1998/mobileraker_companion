@@ -3,6 +3,7 @@ import asyncio
 import base64
 import logging
 from typing import List, Optional
+import pytz
 
 
 import requests
@@ -10,7 +11,7 @@ from mobileraker.client.mobileraker_fcm_client import MobilerakerFcmClient
 from mobileraker.client.moonraker_client import MoonrakerClient
 from mobileraker.client.snapshot_client import SnapshotClient
 from mobileraker.data.dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
-from mobileraker.data.dtos.mobileraker.companion_request_dto import DeviceRequestDto, FcmRequestDto, NotificationContentDto
+from mobileraker.data.dtos.mobileraker.companion_request_dto import ContentDto, DeviceRequestDto, FcmRequestDto, LiveActivityContentDto, NotificationContentDto
 from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.service.data_sync_service import DataSyncService
@@ -91,7 +92,7 @@ class MobilerakerCompanion:
                     continue
                 self._logger.info(
                     'Evaluate for machineID %s, cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.snap, cfg.settings)
-                notifications: List[NotificationContentDto] = []
+                notifications: List[ContentDto] = []
 
                 state_noti = self._state_notification(cfg, snapshot)
                 if state_noti is not None:
@@ -118,11 +119,18 @@ class MobilerakerCompanion:
                     self._logger.info('GCodeResponseNoti: %s - %s',
                                       gcode_response_noti.title, gcode_response_noti.body)
 
+                live_activity_update = self._live_activity_update(
+                    cfg, snapshot)
+                if live_activity_update is not None:
+                    notifications.append(live_activity_update)
+                    self._logger.info('LiveActivity (%s):  %s - %s',
+                                      live_activity_update.token, live_activity_update.progress, live_activity_update.eta)
+
                 self._logger.debug('Notifications for %s: %s',
                                    cfg.fcm_token, notifications)
 
-                self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s', len(
-                    notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None)
+                self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s', len(
+                    notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None)
 
                 if notifications:
                     # Set a webcam img to all DTOs if available
@@ -132,7 +140,9 @@ class MobilerakerCompanion:
                         notifcations=notifications
                     )
                     device_requests.append(dto)
+                
                 await self._update_app_snapshot(cfg, snapshot)
+                await self._clean_up_apns(cfg, snapshot)
 
         self._take_webcam_image(device_requests)
         await self._push_and_clear_faulty(device_requests)
@@ -285,6 +295,28 @@ class MobilerakerCompanion:
             'print_progress_body', cfg, cur_snap, self.companion_config)
         return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
 
+    def _live_activity_update(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[LiveActivityContentDto]:
+        # If uuid is none or empty returm
+        if cfg.apns is None or not cfg.apns.liveActivity:
+            return None
+
+        if cur_snap.progress is None:
+            return None
+
+        self._logger.info(
+            'LiveActivityUpdate preChecks passed'
+        )
+
+        # The live activity can be updted more frequent. Max however in 5 percent steps or if there was a state change
+        if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state:
+            return None
+
+        eta_seconds_utc = int(cur_snap.eta.astimezone(
+            pytz.UTC).timestamp()) if cur_snap.eta else None
+
+        return LiveActivityContentDto(cfg.apns.liveActivity, cur_snap.progress, eta_seconds_utc, "update" if cur_snap.print_state in [
+                                      "printing", "paused"] else "end")
+
     def _custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, is_m117: bool) -> Optional[NotificationContentDto]:
         """
         Check if a custom notification should be issued.
@@ -338,6 +370,8 @@ class MobilerakerCompanion:
     def _take_webcam_image(self, dtos: List[DeviceRequestDto]) -> None:
         if not self.companion_config.include_snapshot:
             return
+        if not dtos:
+            return
 
         img_bytes = self._snapshot_client.take_snapshot()
         if img_bytes is None:
@@ -347,7 +381,8 @@ class MobilerakerCompanion:
 
         for dto in dtos:
             for notification in dto.notifcations:
-                notification.image = img
+                if isinstance(notification, NotificationContentDto):
+                    notification.image = img
 
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
         try:
@@ -372,9 +407,19 @@ class MobilerakerCompanion:
                        or printer_snap.progress < last.progress)):
                 progress_update = printer_snap.progress
 
+            progress_live_activity_update = None
+            if printer_snap.print_state not in ['printing', 'paused']:
+                progress_live_activity_update = 0
+            elif (last.progress_live_activity != printer_snap.progress
+                  and printer_snap.progress is not None
+                  and (normalized_progress_interval_reached(last.progress_live_activity, printer_snap.progress, self.remote_config.increments)
+                       or printer_snap.progress < last.progress_live_activity)):
+                progress_live_activity_update = printer_snap.progress
+
             updated = last.copy_with(
                 state=printer_snap.print_state if last.state != printer_snap.print_state else None,
                 progress=progress_update,
+                progress_live_activity=progress_live_activity_update,
                 m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
                 gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None
             )
@@ -398,3 +443,27 @@ class MobilerakerCompanion:
         except (ConnectionError, asyncio.TimeoutError) as err:
             self._logger.warning(
                 "Could not update snap in FCM Cfg for %s, %s: %s", cfg.machine_id, type(err), err)
+
+    async def _clean_up_apns(self, cfg: DeviceNotificationEntry, printer_snap: PrinterSnapshot) -> None:
+        if (cfg.apns is None):
+            return
+        if (printer_snap.print_state in ['printing', 'paused']):
+            return
+        machine_id = cfg.machine_id
+
+        try:
+            self._logger.info('Deleting APNS for %s', machine_id)
+            _, k_err = await self._jrpc.send_and_receive_method(
+                method="server.database.delete_item",
+                params={"namespace": "mobileraker",
+                        "key": f"fcm.{machine_id}.apns"},
+            )
+            if k_err:
+                self._logger.warning(
+                    "Could not remove apns for %s, moonraker returned error %s", machine_id, k_err)
+            else:
+                self._logger.info(
+                    "Removed apns for %s", machine_id)
+        except (ConnectionError, asyncio.TimeoutError)as err:
+            self._logger.warning(
+                "Could not remove apns for %s, %s", machine_id, err)

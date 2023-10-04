@@ -124,11 +124,13 @@ class NotificationSettings:
 class NotificationSnap:
     def __init__(self,
                  progress: int = 0,
+                 progress_live_activity: int = 0,
                  state: str = '',
                  m117: str = '',
                  gcode_response: Optional[str] = None,
                  ):
         self.progress: int = progress
+        self.progress_live_activity: int = progress_live_activity
         self.state: str = state
         self.m117: str = m117
         self.gcode_response: Optional[str] = gcode_response
@@ -139,6 +141,8 @@ class NotificationSnap:
 
         cfg.progress = round(
             json['progress']*100) if 'progress' in json else -1
+        cfg.progress_live_activity = round(
+            json['progress_live_activity']*100) if 'progress_live_activity' in json else -1
         cfg.state = json['state'] if 'state' in json else 'standby'
         cfg.m117 = json['m117'] if 'm117' in json else ''
         cfg.gcode_response = json['gcode_response'] if 'gcode_response' in json else None
@@ -148,6 +152,7 @@ class NotificationSnap:
     def toJSON(self) -> Dict[str, Any]:
         data = {
             "progress": round(self.progress / 100, 2),
+            "progress_live_activity": round(self.progress_live_activity / 100, 2),
             "state": self.state,
             "m117": self.m117
         }
@@ -157,7 +162,9 @@ class NotificationSnap:
 
         return data
 
-    def copy_with(self, progress: Optional[int] = None,
+    def copy_with(self, 
+                  progress: Optional[int] = None,
+                  progress_live_activity: Optional[int] = None,
                   state: Optional[str] = None,
                   m117: Optional[str] = None,
                   gcode_response: Optional[str] = None,
@@ -177,6 +184,7 @@ class NotificationSnap:
 
         copied_snap = NotificationSnap(
             progress=self.progress if progress is None else progress,
+            progress_live_activity=self.progress_live_activity if progress_live_activity is None else progress_live_activity,
             state=self.state if state is None else state,
             m117=self.m117 if m117 is None else m117,
             gcode_response=self.gcode_response if gcode_response is None else gcode_response
@@ -196,6 +204,7 @@ class NotificationSnap:
 
         return (
             self.progress == other.progress and
+            self.progress_live_activity == other.progress_live_activity and
             self.state == other.state and
             self.m117 == other.m117 and
             self.gcode_response == other.gcode_response

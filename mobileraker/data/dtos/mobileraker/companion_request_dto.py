@@ -1,7 +1,15 @@
 from typing import Any, Dict, List, Optional
 
 
-class NotificationContentDto:
+class ContentDto:
+    def __init__(self):
+        pass
+
+    def toJSON(self) -> Dict[str, Any]:
+        raise NotImplementedError("Subclasses must implement toJSON method")
+
+
+class NotificationContentDto(ContentDto):
     def __init__(self,
                  id: int,
                  channel: str,
@@ -9,6 +17,7 @@ class NotificationContentDto:
                  body: str,
                  image: Optional[str] = None,
                  ):
+        super().__init__()
         self.id: int = id
         self.channel: str = channel
         self.title: str = title
@@ -29,15 +38,39 @@ class NotificationContentDto:
         return json
 
 
+class LiveActivityContentDto(ContentDto):
+    def __init__(self,
+                 token: str,
+                 progress: float,  # (0.0 - 1.0)
+                 eta: Optional[int],  # seconds since unix epoch
+                 live_activity_event: Optional[str],  # update or end
+                 ):
+        super().__init__()
+        self.live_activity_event: Optional[str] = live_activity_event
+        self.token: str = token
+        self.progress: float = progress
+        self.eta: Optional[int] = eta
+
+    def toJSON(self) -> Dict[str, Any]:
+        json = {
+            "type": "update" if self.live_activity_event is None else self.live_activity_event,
+            "token": self.token,
+            "progress": self.progress,
+        }
+        if self.eta is not None:
+            json['eta'] = self.eta
+        return json
+
+
 class DeviceRequestDto:
     def __init__(self,
                  printer_id: str,
                  token: str,
-                 notifcations: List[NotificationContentDto],
+                 notifcations: List[ContentDto],
                  ):
         self.printer_id: str = printer_id
         self.token: str = token
-        self.notifcations:  List[NotificationContentDto] = notifcations
+        self.notifcations:  List[ContentDto] = notifcations
 
     def toJSON(self) -> Dict[str, Any]:
         notifications = []
