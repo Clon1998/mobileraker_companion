@@ -53,6 +53,17 @@ _mobileraker_uk: Dict[str, str] = {
     'm117_custom_title': 'Сповіщення користувача'
 }
 
+_mobileraker_zhhk: Dict[str, str] = {
+    'print_progress_title': '$printer_name$printer_name 的列印進度',
+    'print_progress_body': '$progress, 預計完成時間： $a_eta, 層： $cur_layer/$max_layer',
+    'state_title': '$printer_name 的狀態已更改',
+    'state_printing_body': '開始列印檔案：“$file”',
+    'state_paused_body': '列印檔案時暫停：“$file”',
+    'state_completed_body': '列印完成：“$file”',
+    'state_error_body': '列印檔案時發生錯誤：“$file”',
+    'state_standby_body': '印表機處於待機狀態',
+    'm117_custom_title': '用戶通知'
+}
 _mobileraker_chtw: Dict[str, str] = {
 
 }
@@ -67,9 +78,9 @@ languages: Dict[str, Dict[str, str]] = {
     'en': _mobileraker_en,
     'hu': _mobileraker_hu,
     'uk': _mobileraker_uk,
+    'zhhk': _mobileraker_zhhk,
     'cn': _mobileraker_cnch,
     'cntw': _mobileraker_chtw,
-
 }
 
 
