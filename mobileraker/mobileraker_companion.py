@@ -66,83 +66,93 @@ class MobilerakerCompanion:
         self.loop.create_task(self._evaluate_with_timeout(snapshot))
 
     async def _evaluate_with_timeout(self, snapshot: PrinterSnapshot) -> None:
+        """
+        This method starts the evaluation process with a timeout.
+        It tries to acquire a lock before starting the evaluation.
+        If the lock cannot be acquired within 60 seconds, or if the evaluation takes longer than 60 seconds,
+        it logs a warning and releases the lock.
+        """
+        lock_acquired = False
         try:
-            task = asyncio.create_task(self._evaluate(snapshot))
-            await asyncio.wait_for(task, timeout=60)
+            lock_acquired = await asyncio.wait_for(self._evaulate_noti_lock.acquire(), timeout=60)
+            if lock_acquired:
+                await asyncio.wait_for(self._evaluate(snapshot), timeout=60)
         except asyncio.TimeoutError:
-            self._logger.warning(
-                'Evaluation task timed out after 60 seconds!')
-
+            if lock_acquired:
+                self._logger.warning('Evaluation task execution timed out after 60 seconds!')
+                self._evaulate_noti_lock.release()
+            else:
+                self._logger.warning('Evaluation task was unable to acquire lock after 60 seconds!')
+    
+    
     async def _evaluate(self, snapshot: PrinterSnapshot) -> None:
-        async with self._evaulate_noti_lock:
+        # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
+        if not self._fulfills_evaluation_threshold(snapshot):
+            return
+        self._logger.info(
+            'Snapshot passed threshold. LastSnap: %s, NewSnap: %s', self._last_snapshot, snapshot)
+        self._last_snapshot = snapshot
 
-            # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
-            if not self._fulfills_evaluation_threshold(snapshot):
-                return
+        app_cfgs = await self._fetch_app_cfgs()
+
+        device_requests: List[DeviceRequestDto] = []
+
+        for cfg in app_cfgs:
+            if not cfg.fcm_token:
+                continue
             self._logger.info(
-                'Snapshot passed threshold. LastSnap: %s, NewSnap: %s', self._last_snapshot, snapshot)
-            self._last_snapshot = snapshot
+                'Evaluate for machineID %s, cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.snap, cfg.settings)
+            notifications: List[ContentDto] = []
 
-            app_cfgs = await self._fetch_app_cfgs()
+            state_noti = self._state_notification(cfg, snapshot)
+            if state_noti is not None:
+                notifications.append(state_noti)
+                self._logger.info('StateNoti: %s - %s',
+                                    state_noti.title, state_noti.body)
 
-            device_requests: List[DeviceRequestDto] = []
+            progress_noti = self._progress_notification(cfg, snapshot)
+            if progress_noti is not None:
+                notifications.append(progress_noti)
+                self._logger.info('ProgressNoti: %s - %s',
+                                    progress_noti.title, progress_noti.body)
 
-            for cfg in app_cfgs:
-                if not cfg.fcm_token:
-                    continue
-                self._logger.info(
-                    'Evaluate for machineID %s, cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.snap, cfg.settings)
-                notifications: List[ContentDto] = []
+            m117_noti = self._custom_notification(cfg, snapshot, True)
+            if m117_noti is not None:
+                notifications.append(m117_noti)
+                self._logger.info('M117Noti: %s - %s',
+                                    m117_noti.title, m117_noti.body)
 
-                state_noti = self._state_notification(cfg, snapshot)
-                if state_noti is not None:
-                    notifications.append(state_noti)
-                    self._logger.info('StateNoti: %s - %s',
-                                      state_noti.title, state_noti.body)
+            gcode_response_noti = self._custom_notification(
+                cfg, snapshot, False)
+            if gcode_response_noti is not None:
+                notifications.append(gcode_response_noti)
+                self._logger.info('GCodeResponseNoti: %s - %s',
+                                    gcode_response_noti.title, gcode_response_noti.body)
 
-                progress_noti = self._progress_notification(cfg, snapshot)
-                if progress_noti is not None:
-                    notifications.append(progress_noti)
-                    self._logger.info('ProgressNoti: %s - %s',
-                                      progress_noti.title, progress_noti.body)
+            live_activity_update = self._live_activity_update(
+                cfg, snapshot)
+            if live_activity_update is not None:
+                notifications.append(live_activity_update)
+                self._logger.info('LiveActivity (%s):  %s - %s',
+                                    live_activity_update.token, live_activity_update.progress, live_activity_update.eta)
 
-                m117_noti = self._custom_notification(cfg, snapshot, True)
-                if m117_noti is not None:
-                    notifications.append(m117_noti)
-                    self._logger.info('M117Noti: %s - %s',
-                                      m117_noti.title, m117_noti.body)
+            self._logger.debug('Notifications for %s: %s',
+                                cfg.fcm_token, notifications)
 
-                gcode_response_noti = self._custom_notification(
-                    cfg, snapshot, False)
-                if gcode_response_noti is not None:
-                    notifications.append(gcode_response_noti)
-                    self._logger.info('GCodeResponseNoti: %s - %s',
-                                      gcode_response_noti.title, gcode_response_noti.body)
+            self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s', len(
+                notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None)
 
-                live_activity_update = self._live_activity_update(
-                    cfg, snapshot)
-                if live_activity_update is not None:
-                    notifications.append(live_activity_update)
-                    self._logger.info('LiveActivity (%s):  %s - %s',
-                                      live_activity_update.token, live_activity_update.progress, live_activity_update.eta)
-
-                self._logger.debug('Notifications for %s: %s',
-                                   cfg.fcm_token, notifications)
-
-                self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s', len(
-                    notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None)
-
-                if notifications:
-                    # Set a webcam img to all DTOs if available
-                    dto = DeviceRequestDto(
-                        printer_id=cfg.machine_id,
-                        token=cfg.fcm_token,
-                        notifcations=notifications
-                    )
-                    device_requests.append(dto)
-                
-                await self._update_app_snapshot(cfg, snapshot)
-                await self._clean_up_apns(cfg, snapshot)
+            if notifications:
+                # Set a webcam img to all DTOs if available
+                dto = DeviceRequestDto(
+                    printer_id=cfg.machine_id,
+                    token=cfg.fcm_token,
+                    notifcations=notifications
+                )
+                device_requests.append(dto)
+            
+            await self._update_app_snapshot(cfg, snapshot)
+            await self._clean_up_apns(cfg, snapshot)
 
         self._take_webcam_image(device_requests)
         await self._push_and_clear_faulty(device_requests)
