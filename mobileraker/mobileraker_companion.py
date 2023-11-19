@@ -80,11 +80,13 @@ class MobilerakerCompanion:
         except asyncio.TimeoutError:
             if lock_acquired:
                 self._logger.warning('Evaluation task execution timed out after 60 seconds!')
-                self._evaulate_noti_lock.release()
             else:
                 self._logger.warning('Evaluation task was unable to acquire lock after 60 seconds!')
-    
-    
+        finally:
+            if lock_acquired:
+                self._evaulate_noti_lock.release()
+
+
     async def _evaluate(self, snapshot: PrinterSnapshot) -> None:
         # Limit evaluation to state changes and 5% increments(Later m117 can also trigger notifications, but might use other stuff)
         if not self._fulfills_evaluation_threshold(snapshot):
