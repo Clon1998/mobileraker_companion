@@ -36,6 +36,17 @@ _mobileraker_de: Dict[str, str] = {
     'm117_custom_title': 'Nutzer-Benachrichtigung'
 }
 
+_mobileraker_ptbr: Dict[str, str] = {
+    'print_progress_title': 'Progresso de Impressão de $printer_name',
+    'print_progress_body': '$progresso, ETA: $a_eta',
+    'state_title': 'Status de $printer_name Alterado',
+    'state_printing_body': 'Iniciou a impressão do arquivo: "$file"',
+    'state_paused_body': 'Pausou durante a impressão do arquivo: "$file"',
+    'state_completed_body': 'Concluiu a impressão do arquivo: "$file"',
+    'state_error_body': 'Erro durante a impressão do arquivo: "$file"',
+    'state_standby_body': 'A impressora está em modo de espera',
+    'm117_custom_title': 'Notificação do Usuário'
+}
 
 _mobileraker_hu: Dict[str, str] = {
 
