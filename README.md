@@ -125,7 +125,8 @@ snapshot_rotation: 0
 The Companion searches for a `Mobileraker.conf` file in the following locations (in order of precedence):
 1. `~/Mobileraker.conf`
 2. `<mobileraker_companion DIR>/mobileraker.conf`
-3. `~/klipper_config/mobileraker.conf`
+3. `~/printer_data/config/mobileraker.conf`
+4. `~/klipper_config/mobileraker.conf`
 
 
 A single Companion instance can support multiple printers. To configure multiple printers, add more `[printer ...]` sections to your config. Here's an example of a multi-printer config:
