@@ -89,6 +89,7 @@ languages: Dict[str, Dict[str, str]] = {
     'en': _mobileraker_en,
     'hu': _mobileraker_hu,
     'uk': _mobileraker_uk,
+    'ptbr': _mobileraker_ptbr,
     'zhhk': _mobileraker_zhhk,
     'cn': _mobileraker_cnch,
     'cntw': _mobileraker_chtw,
