@@ -93,6 +93,7 @@ class DataSyncService:
                 self.gcode_move = self.gcode_move.updateWith(object_data)
 
         # Kinda hacky but this works!
+        # It would be better if the _notify_listeners()/sync current file is called in a different context since this method should only parse!
         if fetchMeta:
             self._loop.create_task(self._sync_current_file())
         else:

@@ -3,7 +3,7 @@ import asyncio
 import base64
 import logging
 from typing import List, Optional
-import pytz
+import time
 
 
 import requests
@@ -52,6 +52,7 @@ class MobilerakerCompanion:
         self._logger = logging.getLogger(
             f'mobileraker.{printer_name.replace(".","_")}')
         self._last_snapshot: Optional[PrinterSnapshot] = None
+        self._last_apns_message: Optional[int] = None
         self._evaulate_noti_lock: Lock = Lock()
 
         self._jrpc.register_connection_listener(
@@ -177,17 +178,36 @@ class MobilerakerCompanion:
 
     def _fulfills_evaluation_threshold(self, snapshot: PrinterSnapshot) -> bool:
         if self._last_snapshot is None:
+            self._logger.info('No last snapshot available. Evaluating!')
             return True
 
         if self._last_snapshot.print_state != snapshot.print_state:
+            self._logger.info('State changed. Evaluating!')
             return True
 
-        if self._last_snapshot.m117_hash != snapshot.m117_hash:
+        if self._last_snapshot.m117_hash != snapshot.m117_hash and snapshot.m117 is not None and snapshot.m117.startswith('$MR$:'):
+            self._logger.info('M117 changed. Evaluating!')
             return True
 
-        if self._last_snapshot.gcode_response_hash != snapshot.gcode_response_hash:
+        if self._last_snapshot.gcode_response_hash != snapshot.gcode_response_hash and snapshot.gcode_response is not None and snapshot.gcode_response.startswith('MR_NOTIFY:'):
+            self._logger.info('GcodeResponse changed. Evaluating!')
             return True
 
+
+        if self._last_snapshot.eta is None and snapshot.eta is not None:
+            self._logger.info('ETA is available. Evaluating!')
+            return True
+
+        # TODO: This is not yet working as intended. The eta does not trigger an evaluation with the current code!
+        # Check if eta changed by more than 10 minutes and the last live activity update was more than 30 seconds ago
+        # if (self._last_apns_message is not None and 
+        #     (time.monotonic_ns() - self._last_apns_message) / 1e9 > 30 and
+        #     self._last_snapshot.eta is not None and snapshot.eta is not None and 
+        #     abs((self._last_snapshot.eta - snapshot.eta).seconds) > 600):
+        #     self._logger.info('ETA changed by more than 10 minutes after 30 sec. Evaluating!')
+        #     return True
+
+        # Progress evaluation
         last_progress = self._last_snapshot.progress
         cur_progress = snapshot.progress
 
@@ -195,9 +215,15 @@ class MobilerakerCompanion:
             return False
 
         if last_progress is None or cur_progress is None:
+            self._logger.info('Progress is None. Evaluating!')
             return True
 
-        return normalized_progress_interval_reached(last_progress, cur_progress, self.remote_config.increments)
+        if normalized_progress_interval_reached(last_progress, cur_progress, self.remote_config.increments):
+            self._logger.info('Progress reached interval. Evaluating!')
+            return True
+
+        # Yes I know I can return on the last if, but I want to log the reason why it triggered an evaluation
+        return False
 
     async def _fetch_app_cfgs(self) -> List[DeviceNotificationEntry]:
         try:
@@ -319,14 +345,22 @@ class MobilerakerCompanion:
             'LiveActivityUpdate preChecks passed'
         )
 
+        etaUpdate = self._last_snapshot is not None and \
+                    self._last_snapshot.eta is not None and cur_snap.eta is not None and \
+                    abs((self._last_snapshot.eta - cur_snap.eta).seconds) > 600
+
         # The live activity can be updted more frequent. Max however in 5 percent steps or if there was a state change
-        if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state:
+        if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state and not etaUpdate:
             return None
 
-        eta_seconds_utc = int(cur_snap.eta.astimezone(
-            pytz.UTC).timestamp()) if cur_snap.eta else None
+        self._logger.info(
+            'LiveActivityUpdate passed'
+        )
 
-        return LiveActivityContentDto(cfg.apns.liveActivity, cur_snap.progress, eta_seconds_utc, "update" if cur_snap.print_state in [
+        # Set the last apns message time to now
+        self._last_apns_message = time.monotonic_ns()
+        
+        return LiveActivityContentDto(cfg.apns.liveActivity, cur_snap.progress, cur_snap.eta_seconds_utc, "update" if cur_snap.print_state in [
                                       "printing", "paused"] else "end")
 
     def _custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, is_m117: bool) -> Optional[NotificationContentDto]:

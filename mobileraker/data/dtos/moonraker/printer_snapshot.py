@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import math
+import pytz
 from typing import Optional
 
 from mobileraker.data.dtos.moonraker.printer_objects import GCodeFile, GCodeMove, PrintStats, Toolhead, VirtualSDCard
@@ -166,6 +167,12 @@ class PrinterSnapshot:
         if remaining:
             now = datetime.now()
             return now + timedelta(seconds=remaining)
+        
+    @property
+    def eta_seconds_utc(self) -> Optional[int]:
+        return int(self.eta.astimezone(
+            pytz.UTC).timestamp()) if self.eta else None
+        
 
     @property
     def filename(self) -> Optional[str]:
