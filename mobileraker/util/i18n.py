@@ -75,12 +75,17 @@ _mobileraker_zhhk: Dict[str, str] = {
     'state_standby_body': '印表機處於待機狀態',
     'm117_custom_title': '用戶通知'
 }
-_mobileraker_chtw: Dict[str, str] = {
 
-}
-
-_mobileraker_cnch: Dict[str, str] = {
-
+_mobileraker_zhcn: Dict[str, str] = {
+    'print_progress_title': '$printer_name$printer_name 的打印进度',
+    'print_progress_body': '$progress, 预计完成时间： $a_eta, 层： $cur_layer/$max_layer',
+    'state_title': '$printer_name 的状态已更改',
+    'state_printing_body': '开始打印档案：“$file”',
+    'state_paused_body': '打印档案时暂停：“$file”',
+    'state_completed_body': '打印完成：“$file”',
+    'state_error_body': '打印档案时发生错误：“$file”',
+    'state_standby_body': '打印机处于待机状态',
+    'm117_custom_title': '用户通知'
 }
 
 
@@ -91,8 +96,7 @@ languages: Dict[str, Dict[str, str]] = {
     'uk': _mobileraker_uk,
     'ptbr': _mobileraker_ptbr,
     'zhhk': _mobileraker_zhhk,
-    'cn': _mobileraker_cnch,
-    'cntw': _mobileraker_chtw,
+    'zhcn': _mobileraker_zhcn,
 }
 
 
