@@ -216,3 +216,8 @@ class PrinterSnapshot:
     @property
     def progress(self) -> Optional[int]:
         return int(self.print_progress_by_fileposition_relative * 100) if self.print_progress_by_fileposition_relative else None
+    
+    @property
+    def is_timelapse_pause(self) -> bool:
+        return self.print_state == "paused" and self.timelapse_pause is True
+

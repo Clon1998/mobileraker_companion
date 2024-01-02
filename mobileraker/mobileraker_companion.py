@@ -181,7 +181,7 @@ class MobilerakerCompanion:
             self._logger.info('No last snapshot available. Evaluating!')
             return True
 
-        if self._last_snapshot.print_state != snapshot.print_state and not snapshot.timelapse_pause and not self._last_snapshot.timelapse_pause:
+        if self._last_snapshot.print_state != snapshot.print_state and not snapshot.is_timelapse_pause and not self._last_snapshot.is_timelapse_pause:
             self._logger.info('State changed. Evaluating!')
             return True
 
@@ -280,7 +280,7 @@ class MobilerakerCompanion:
             return None
                 
         # Ignore paused state caused by timelapse plugin
-        if cur_snap.timelapse_pause:
+        if cur_snap.is_timelapse_pause:
             return None
 
         # collect title and body to translate it
@@ -467,7 +467,7 @@ class MobilerakerCompanion:
                 progress_live_activity_update = printer_snap.progress
 
             updated = last.copy_with(
-                state=printer_snap.print_state if last.state != printer_snap.print_state and not printer_snap.timelapse_pause else None,
+                state=printer_snap.print_state if last.state != printer_snap.print_state and not printer_snap.is_timelapse_pause else None,
                 progress=progress_update,
                 progress_live_activity=progress_live_activity_update,
                 m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
