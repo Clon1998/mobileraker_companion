@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
+from typing import Optional
 import math
 import pytz
-from typing import Optional
 
 from mobileraker.data.dtos.moonraker.printer_objects import GCodeFile, GCodeMove, PrintStats, Toolhead, VirtualSDCard
 
@@ -24,6 +24,7 @@ class PrinterSnapshot:
         self.gcode_move: Optional[GCodeMove] = None
         self.gcode_response: Optional[str] = None
         self.gcode_response_hash: Optional[str] = None
+        self.timelapse_pause: Optional[bool] = None
 
     def __str__(self):
         return '%s(%s)' % (
@@ -43,6 +44,7 @@ class PrinterSnapshot:
             and self.virtual_sdcard == other.virtual_sdcard
             and self.current_file == other.current_file
             and self.gcode_response == other.gcode_response
+            and self.timelapse_pause == other.timelapse_pause
         )
 
     @property

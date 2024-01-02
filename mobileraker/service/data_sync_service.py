@@ -2,13 +2,26 @@ from asyncio import AbstractEventLoop, sleep
 import asyncio
 import hashlib
 import logging
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional
 from mobileraker.client.moonraker_client import MoonrakerClient
 from mobileraker.data.dtos.moonraker.printer_objects import DisplayStatus, GCodeFile, GCodeMove, PrintStats, ServerInfo, Toolhead, VirtualSDCard
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 
 
+
+
 class DataSyncService:
+    _OBJECTS_TO_SUBSCRIBE =  {
+        "objects": {
+            "print_stats": None,
+            "display_status": None,
+            "virtual_sdcard": None,
+            "toolhead": None,
+            "gcode_move": None,
+            "gcode_macro TIMELAPSE_TAKE_FRAME": None,
+        }
+    }
+
     '''
     This service is responsible for keeping track of the latest printer data and then
     providing a snapshot of all data to any service that requires it.
@@ -43,6 +56,7 @@ class DataSyncService:
         self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
         self.current_file: Optional[GCodeFile] = None
         self.gcode_response: Optional[str] = None
+        self.timelapse_pause: Optional[bool] = None
         self.resync_retries: int = resync_retries
 
         self._snapshot_listeners: List[Callable[[PrinterSnapshot], None]] = []
@@ -91,6 +105,8 @@ class DataSyncService:
                 self.toolhead = self.toolhead.updateWith(object_data)
             elif key == 'gcode_move':
                 self.gcode_move = self.gcode_move.updateWith(object_data)
+            elif key == 'gcode_macro TIMELAPSE_TAKE_FRAME':
+                self.timelapse_pause = object_data.get('is_paused', None)
 
         # Kinda hacky but this works!
         # It would be better if the _notify_listeners()/sync current file is called in a different context since this method should only parse!
@@ -178,16 +194,7 @@ class DataSyncService:
         '''
         try:
             self._logger.info("Syncing printer Objects")
-            params = {
-                "objects": {
-                    "print_stats": None,
-                    # "display_status": None,
-                    "virtual_sdcard": None,
-                    "toolhead": None,
-                    "gcode_move": None,
-                }
-            }
-            response, k_err = await self._jrpc.send_and_receive_method("printer.objects.query", params)
+            response, k_err = await self._jrpc.send_and_receive_method("printer.objects.query", self._OBJECTS_TO_SUBSCRIBE)
             if k_err:
                 self._logger.warning("Could not sync printer data. Moonraker returned error %s", k_err)
                 return
@@ -218,16 +225,8 @@ class DataSyncService:
             None
         '''
         self._logger.info("Subscribing to printer Objects")
-        params = {
-            "objects": {
-                "print_stats": None,
-                "display_status": None,
-                "virtual_sdcard": None,
-                "toolhead": None,
-                "gcode_move": None,
-            }
-        }
-        await self._jrpc.send_method("printer.objects.subscribe", None, params)
+        await self._jrpc.send_method("printer.objects.subscribe", None, self._OBJECTS_TO_SUBSCRIBE)
+        self._logger.info("Subscribed to printer Objects")
 
     def _notify_listeners(self):
         '''
@@ -330,6 +329,7 @@ class DataSyncService:
         snapshot.gcode_response = self.gcode_response
         snapshot.gcode_response_hash = hashlib.sha256(snapshot.gcode_response.encode(
             "utf-8")).hexdigest() if snapshot.gcode_response else ''
+        snapshot.timelapse_pause = self.timelapse_pause
 
         self._logger.debug('Took a PrinterSnapshot: %s', snapshot)
         return snapshot

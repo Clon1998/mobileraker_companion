@@ -181,7 +181,7 @@ class MobilerakerCompanion:
             self._logger.info('No last snapshot available. Evaluating!')
             return True
 
-        if self._last_snapshot.print_state != snapshot.print_state:
+        if self._last_snapshot.print_state != snapshot.print_state and not snapshot.timelapse_pause:
             self._logger.info('State changed. Evaluating!')
             return True
 
@@ -309,6 +309,10 @@ class MobilerakerCompanion:
         # only issue new progress notifications if the printer is printing, or paused
         # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
         if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
+            return None
+        
+        # Ignore paused state caused by timelapse plugin
+        if cur_snap.timelapse_pause:
             return None
 
         self._logger.info(
