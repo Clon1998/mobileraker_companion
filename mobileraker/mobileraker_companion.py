@@ -181,7 +181,7 @@ class MobilerakerCompanion:
             self._logger.info('No last snapshot available. Evaluating!')
             return True
 
-        if self._last_snapshot.print_state != snapshot.print_state and not snapshot.is_timelapse_pause and not self._last_snapshot.is_timelapse_pause:
+        if self._last_snapshot.print_state != snapshot.print_state and not snapshot.is_timelapse_pause:
             self._logger.info('State changed. Evaluating!')
             return True
 
