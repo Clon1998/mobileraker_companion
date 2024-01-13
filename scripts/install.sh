@@ -3,7 +3,8 @@
 #
 # Installation script for mobileraker companion.
 #
-# Based on OctoEverywhere for Klipper, curtsey of Quinn Damerell
+# Based on OctoEverywhere for Klipper, courtesy
+ of Quinn Damerell
 # OctoEverywhere: https://octoeverywhere.com
 #
 
@@ -276,7 +277,7 @@ EOF
 log_blank
 log_important "                  Mobileraker Companion"
 log_blue      " Companion for Mobileraker, enabling push notification for Klipper using Moonraker."
-log_info      " - Installer Script based on OctoEverywhere for Klipper, curtsey of Quinn Damerell"
+log_info      " - Installer Script based on OctoEverywhere for Klipper, courtesy of Quinn Damerell"
 log_blank
 log_blank
 log_important "Mobileraker works as a simple UI for Klipper on the phone."
