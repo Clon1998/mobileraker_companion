@@ -59,7 +59,7 @@ class Permissions:
         # due to the setup mode. We don't care to difference the setup mode here, because the context
         # validation will do that for us already. Thus if a field is None, its ok.
         def ensure_permissions(path:str):
-            if path is not None and len(path) != 0:
+            if path is not None and len(path) != 0 and os.path.exists(path):
                 Util.update_file_ownership(path, context.username)
 
         # For all setups, make sure the entire repo is owned by the user who launched the script.
