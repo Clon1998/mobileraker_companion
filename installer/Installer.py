@@ -40,7 +40,7 @@ class Installer:
         #
         # Setup Phase
         #
-
+        
         # The installer script passes a json object to us, which contains all of the args.
         # But it might not be the first arg.
         json_args = self._parse_args()
@@ -52,6 +52,8 @@ class Installer:
 
         # As soon as we have the user home make the log file.
         Logger.setup(context.user_home)
+
+        Logger.Info("Starting Installer...")
 
         # Parse the original CmdLineArgs
         Logger.Debug("Parsing install (bash) cmd line args.")

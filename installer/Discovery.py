@@ -73,7 +73,7 @@ class Discovery:
             raise ValueError("No moonraker instances could be detected on this device.")
 
         # Now that we have list of all moonraker config and service file pairs, match the moonraker config passed in, if there is one.
-        if context.moonraker_config_file_path is not None:
+        if context.has_moonraker_config_file_path:
             for p in discovery_result:
                 if p.moonraker_config_file_path == context.moonraker_config_file_path:
                     # Update the context and return!

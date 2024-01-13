@@ -210,7 +210,7 @@ install_or_update_system_dependencies()
         # These we require to be installed in the OS.
         # Note we need to do this before we create our virtual environment
         log_important "You might be asked for your system password - this is required to install the required system packages."
-        log_info "Installing required system packages..."
+        log_info "Installing required system packages. This can take a few minutes..."
         sudo apt update 1>/dev/null` 2>/dev/null` || true
         sudo apt install --yes ${PKGLIST}
 
@@ -224,7 +224,7 @@ install_or_update_system_dependencies()
         sudo apt install --yes libjpeg62-turbo-dev 2> /dev/null || true
         sudo apt install --yes libjpeg8-dev 2> /dev/null || true
     fi
-
+    log_blank
     log_info "System package install complete."
 }
 
