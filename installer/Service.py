@@ -241,6 +241,7 @@ exit $?
 
     @staticmethod
     def restart_service(serviceName:str, throwOnBadReturnCode = True):
+        serviceName += ".service"
         (returnCode, output, errorOut) = Util.run_shell_command("systemctl stop "+serviceName, throwOnBadReturnCode)
         if returnCode != 0:
             Logger.Warn(f"Service {serviceName} might have failed to stop. Output: {output} Error: {errorOut}")
