@@ -84,9 +84,7 @@ class CompanionLocalConfig:
             f'Main section read, language:"{self.language}", timezone:"{self.timezone_str}", eta_format:"{self.eta_format}", include_snapshot:"{self.include_snapshot}"')
 
     def get_config_file_location(self, passed_config: str) -> Optional[str]:
-        logging.info("Passed config file is: %s" % passed_config)
-
-        foundFile = passed_config if os.path.exists(passed_config) else self.__check_companion_dir() or self.__check_klipper_config_dir(
+        foundFile = self.__check_passed_config(passed_config) or self.__check_companion_dir() or self.__check_klipper_config_dir(
         ) or self.__check_printer_data_config_dir() or self.__check_user_dir()
 
         if foundFile and os.path.exists(foundFile):
@@ -126,3 +124,12 @@ class CompanionLocalConfig:
     def __check_user_dir(self) -> Optional[str]:
         logging.info("Checking user dir")
         return self.__check_file_exists(home_dir, self.default_file_name)
+    
+    # Check user-dir -> ~/Mobileraker.conf
+    def __check_passed_config(self, passed_config: str) -> Optional[str]:
+        logging.info("Checking if passed config exists: %s" % passed_config)
+    
+        if os.path.exists(passed_config):
+            return passed_config
+    
+
