@@ -40,6 +40,10 @@ def setup_logging(log_file, software_version):
     coloredlogs.install(
         logger=root_logger, fmt=f'%(asctime)s %(name)s %(levelname)s %(message)s')
 
+    # Check if provided log_file is a file or a directory
+    if os.path.isdir(log_file):
+        log_file = os.path.join(log_file, "mobileraker.log")
+
     print(f"Logging to file: {os.path.normpath(log_file)}")
     try:
         fh = MobilerakerCompanionLoggingHandler(
@@ -66,3 +70,6 @@ def setup_logging(log_file, software_version):
 
     sys.excepthook = logging_exception_handler
     logging.captureWarnings(True)
+
+    # Disable websockets info logging
+    # logging.getLogger("websockets").setLevel(logging.ERROR)
