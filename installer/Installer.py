@@ -140,10 +140,9 @@ class Installer:
         Logger.Blank()
         Logger.Blank()
         Logger.Blank()
-        Logger.Purple("        ~~~ OctoEverywhere For Klipper Setup Complete ~~~    ")
-        Logger.Warn(  "  You Can Access Your Printer Anytime From OctoEverywhere.com")
-        Logger.Header("                   Welcome To Our Community                  ")
-        Logger.Error( "                            <3                               ")
+        Logger.Purple("  ~~~ Mobileraker Companion installation Complete ~~~")
+        Logger.Header("                   Happy Printing!")
+        Logger.Error( "                          <3")
         Logger.Blank()
         Logger.Blank()
 
