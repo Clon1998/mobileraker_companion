@@ -2,6 +2,7 @@ import os
 import subprocess
 # pylint: disable=import-error # Only exists on linux
 import pwd
+from typing import List, Optional
 
 from .Logging import Logger
 from .Context import Context
@@ -105,13 +106,39 @@ class Util:
 
 
     @staticmethod
-    def PrintServiceLogsToConsole(context:Context):
-        if context.ServiceName is None:
-            Logger.Warn("Can't print service logs, there's no service name.")
-            return
-        try:
-            (_, output, _) = Util.run_shell_command("sudo journalctl -u "+context.ServiceName+" -n 20 --no-pager")
-            # Use the logger to print the logs, so they are captured in the log file as well.
-            Logger.Info(output)
-        except Exception as e:
-            Logger.Error("Failed to print service logs. "+str(e))
+    def scan_files(path:str, prefix:Optional[str] = None, suffix:Optional[str] = None, depth:int = 0) -> List[str]:
+        """
+        Recursively scans files in a given directory and its subdirectories.
+        
+        Args:
+            path (str): The path of the directory to scan.
+            prefix (Optional[str]): Optional prefix filter for file names. Only files with names starting with the prefix will be included.
+            suffix (Optional[str]): Optional suffix filter for file names. Only files with names ending with the suffix will be included.
+            depth (int): The current depth of the recursion. Used to limit the depth of the scan.
+        
+        Returns:
+            List[str]: A list of file paths that match the specified filters.
+        """
+        results = []
+        if depth > 10:
+            return results
+        # Use sorted, so the results are in a nice user presentable order.
+        contents = sorted(os.listdir(path))
+        for file_name in contents:
+            full_path = os.path.join(path, file_name)
+            # Search sub folders
+            if os.path.isdir(full_path):
+                tmp = self._scan_files(full_path, prefix, suffix, depth + 1)
+                if tmp is not None:
+                    for t in tmp:
+                        results.append(t)
+            # Only accept files that aren't links, since there are a lot of those in the service files.
+            elif os.path.isfile(full_path) and os.path.islink(full_path) is False:
+                include = True
+                if prefix is not None:
+                    include = file_name.lower().startswith(prefix)
+                if include is True and suffix is not None:
+                    include = file_name.lower().endswith(suffix)
+                if include:
+                    results.append(full_path)
+        return results

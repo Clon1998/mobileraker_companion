@@ -99,7 +99,8 @@ class Discovery:
         Logger.Blank()
         Logger.Warn("Multiple Moonraker Instances Detected.")
         Logger.Warn("Mobileraker Companion can manage multiple printers.")
-        Logger.Warn("The installer will either add the new printer to an existing instance or install a new one.")
+        Logger.Warn("However, only one installation of the Companion is required.")
+        Logger.Warn("If a Mobile Companion instance is already installed, the Installer will adjust the companions config to add the selected Moonraker instance if needed.")
         Logger.Blank()
         if context.is_creality_os:
             Logger.Header("Sonic Pad/K1 Users - If you're only using one printer, select number 1")
@@ -138,7 +139,7 @@ class Discovery:
         # Look for any service file that matches moonraker*.service.
         # For simple installs, there will be one file called moonraker.service.
         # For more complex setups, we assume it will use the kiauh naming system, of moonraker-<name or number>.service
-        service_files = self._scan_files(Paths.SystemdServiceFilePath, "moonraker", ".service")
+        service_files = Util.scan_files(Paths.SystemdServiceFilePath, "moonraker", ".service")
 
         # Based on the possible service files, see what moonraker config files we can match.
         results = []
@@ -167,7 +168,7 @@ class Discovery:
     def _discover_pairings_for_sonic_pad(self):
         # For the Sonic Pad, we know the name of the service files and the path.
         # They will be named moonraker_service and moonraker_service.*
-        service_files = self._scan_files(Paths.CrealityOsServiceFilePath, "moonraker_service")
+        service_files = Util.scan_files(Paths.CrealityOsServiceFilePath, "moonraker_service")
 
         # Based on the possible service files, see what moonraker config files we can match.
         results = []
@@ -412,43 +413,6 @@ class Discovery:
         # We didn't find it.
         return None
 
-
-    def _scan_files(self, path:str, prefix:Optional[str] = None, suffix:Optional[str] = None, depth:int = 0) -> List[str]:
-        """
-        Recursively scans files in a given directory and its subdirectories.
-        
-        Args:
-            path (str): The path of the directory to scan.
-            prefix (Optional[str]): Optional prefix filter for file names. Only files with names starting with the prefix will be included.
-            suffix (Optional[str]): Optional suffix filter for file names. Only files with names ending with the suffix will be included.
-            depth (int): The current depth of the recursion. Used to limit the depth of the scan.
-        
-        Returns:
-            List[str]: A list of file paths that match the specified filters.
-        """
-        results = []
-        if depth > 10:
-            return results
-        # Use sorted, so the results are in a nice user presentable order.
-        contents = sorted(os.listdir(path))
-        for file_name in contents:
-            full_path = os.path.join(path, file_name)
-            # Search sub folders
-            if os.path.isdir(full_path):
-                tmp = self._scan_files(full_path, prefix, suffix, depth + 1)
-                if tmp is not None:
-                    for t in tmp:
-                        results.append(t)
-            # Only accept files that aren't links, since there are a lot of those in the service files.
-            elif os.path.isfile(full_path) and os.path.islink(full_path) is False:
-                include = True
-                if prefix is not None:
-                    include = file_name.lower().startswith(prefix)
-                if include is True and suffix is not None:
-                    include = file_name.lower().endswith(suffix)
-                if include:
-                    results.append(full_path)
-        return results
 
 
     def _print_debug(self, context:Context):

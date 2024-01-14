@@ -9,7 +9,9 @@ import tzlocal
 from mobileraker.util.i18n import languages
 
 from .Logging import Logger
-from .Context import Context
+from .Context import Context, PlatformType
+from .Paths import Paths
+from .Util import Util
 
 
 class Config:
@@ -41,13 +43,13 @@ class Config:
             None
         """
         Logger.Header("Starting Config Writer...")
-        context.mobileraker_conf_path = self._mobileraker_conf_path(context)
-        # mr_moonraker_conf = self._mobileraker_update_manager_path(context)
-
+        context.mobileraker_conf_path = self._discover_mobileraker_conf_path(context)
+        Logger.Debug("Mobileraker Config Path: "+context.mobileraker_conf_path)
+        
         self._setup_mobileraker_conf(context)
-
+        
         #TODO - Setup the moonraker update manager.
-
+        # mr_moonraker_conf = self._mobileraker_update_manager_path(context)
 
         Logger.Info("Config Writer Completed.")
 
@@ -135,12 +137,80 @@ class Config:
         Logger.Info("Selected language: "+available_languages[respond_index])
         return available_languages[respond_index]
 
+    def _discover_mobileraker_conf_path(self, context: Context) -> str:
+        if context.platform == PlatformType.DEBIAN:
+            return self._discover_mobileraker_conf_path_for_native(context)
+        elif context.platform == PlatformType.K1:
+            return self._discover_mobileraker_conf_path_for_k1(context)
+        elif context.platform == PlatformType.SONIC_PAD:
+            return self._discover_mobileraker_conf_path_for_sonic_pad(context)
+        raise NotImplementedError(f"Config discovery is not supported for Platform type {context.platform} yet.")
 
-    def _mobileraker_conf_path(self, context: Context) -> str:
+    def _discover_mobileraker_conf_path_for_native(self, context: Context) -> str:
+        service_files = Util.scan_files(Paths.SystemdServiceFilePath, "mobileraker.service")
+
+        for service_file in service_files:
+            path = self._mobileraker_conf_path_from_service_file(service_file)
+            if path is not None:
+                return path
+
+        # If we didn't find any service files, we assume it is a new install and we should create the file.
+        return self._default_mobileraker_conf_path(context)
+    
+    def _discover_mobileraker_conf_path_for_k1(self, context: Context) -> str:
+        # If we are on a K1, there should always only be a single moonraker instance, so we can just use the default path.
+        return self._default_mobileraker_conf_path(context)
+
+    def _discover_mobileraker_conf_path_for_sonic_pad(self, context: Context) -> str:
+        # The Sonic Pad can have multiple moonraker instances. However, we always use the default/base one for the master config.
+        return f"{Paths.CrealityOsUserDataPath_SonicPad}/printer_config/{Config.CONFIG_FILE_NAME}"
+        
+
+    def _default_mobileraker_conf_path(self, context: Context) -> str:
         if len(context.printer_data_config_folder) != 0:
             return os.path.join(context.printer_data_config_folder, Config.CONFIG_FILE_NAME)
         
         return os.path.join(context.user_home, Config.CONFIG_FILE_NAME)
+
+    def _mobileraker_conf_path_from_service_file(self, service_file: str) -> Optional[str]:
+        try:
+            Logger.Debug("Parsing mobileraker config path from service file: "+service_file)
+
+            with open(service_file, "r", encoding="utf-8") as file:
+                lines = file.readlines()
+                for line in lines:
+                    # We are lokign for the ExecStart since this should contain the path to the config file or the absolute path to the config file.
+                    
+                    
+                    # ExecStart=/home/fly/mobileraker-env/bin/python3 /home/fly/mobileraker_companion/mobileraker.py -l /home/fly/printer_data/logs -c /home/fly/printer_data/config/mobileraker.conf
+                    if line.startswith("ExecStart="):
+                        # We found the line, parse the path from it.
+                        path = self._parse_exec_start_line(line)
+                        if path is not None:
+                            Logger.Debug("Found mobileraker config path from service file: "+path)
+                            return path
+            
+
+
+
+
+        except Exception as e:
+            Logger.Warn("Failed to parse mobileraker config path from service file: "+str(e))
+        return None
+
+
+    def _parse_exec_start_line(self, line: str) -> Optional[str]:
+        #ExecStart=/home/fly/mobileraker-env/bin/python3 /home/fly/mobileraker_companion/mobileraker.py -l /home/fly/printer_data/logs -c /home/fly/printer_data/config/mobileraker.conf
+
+        # Find the index of -d
+        index = line.find("-c")
+        if index == -1:
+            return None
+        # Get the substring after -d
+        sub = line[index+2:].strip()
+        # Split by space and take the first item.
+        sub = sub.split(" ")[0]
+        return sub
 
 
 
