@@ -10,7 +10,7 @@ from .Configure import Configure
 # Responsible for creating, running, and ensuring the service is installed and running.
 class Service:
 
-    SERVICE_NUMBER = 80
+    
 
     def install(self, context:Context):
         """
@@ -93,7 +93,7 @@ class Service:
 #!/bin/sh /etc/rc.common
 # Copyright (C) 2006-2011 OpenWrt.org
 
-START={Service.SERVICE_NUMBER}
+START={Configure.SERVICE_NUMBER}
 STOP=1
 DEPEND=moonraker_service
 USE_PROCD=1

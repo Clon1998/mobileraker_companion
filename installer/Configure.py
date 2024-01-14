@@ -1,7 +1,6 @@
 import configparser
 import os
 
-from .Service import Service
 from .Paths import Paths
 from .Util import Util
 from .Logging import Logger
@@ -14,6 +13,7 @@ class Configure:
     # This MUST be used for all instances running on this device, both local plugins and companions.
     # This also MUST NOT CHANGE, as it's used by the Updater logic to find all of the locally running services.
     SERVICE_NAME = "mobileraker"
+    SERVICE_NUMBER = 80
 
     def run(self, context:Context):
         """
@@ -63,7 +63,7 @@ class Configure:
         elif context.platform == PlatformType.K1:
             # For the k1, there's only ever one moonraker and we know the exact service naming convention.
             # Note we use 76 to ensure we start after moonraker.
-            context.service_file_path = os.path.join(Paths.CrealityOsServiceFilePath, f"S{Service.SERVICE_NUMBER}{Configure.SERVICE_NAME}_service")
+            context.service_file_path = os.path.join(Paths.CrealityOsServiceFilePath, f"S{Configure.SERVICE_NUMBER}{Configure.SERVICE_NAME}_service")
         else:
             # For normal setups, use the convention that Klipper users
             # NOTE! For the Update class to work, the name must start with Configure.SERVICE_NAME
