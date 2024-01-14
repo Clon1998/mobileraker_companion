@@ -1,7 +1,7 @@
 import configparser
 from io import TextIOBase
 import os
-from typing import Optional
+from typing import List, Optional
 
 import tzlocal
 
@@ -79,6 +79,7 @@ class Config:
         
         printer_sections = [i for i in config.sections() if i.startswith("printer ")]
         
+        
         # If there are no printer sections, add one.
         if len(printer_sections) == 0:
             Logger.Blank()
@@ -86,13 +87,17 @@ class Config:
             Logger.Warn(f"No printer sections found in {Config.CONFIG_FILE_NAME}, adding a default one.")
             Logger.Warn(f"Please verify the config settings are correct after the install is complete in the {Config.CONFIG_FILE_NAME}.")
             Logger.Info("Note: If you have multiple printers, you will need to add them manually in the same file and format.")
-            sec = "printer default"
-            write_section.append(sec)
-            config.add_section(sec)
-            config.set(sec, "moonraker_uri", f"ws://127.0.0.1:{context.moonraker_port}/websocket")
-            config.set(sec, "moonraker_api_key", "False")
-            config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
-            config.set(sec, "snapshot_rotation", "0")
+            self._add_printer("default", context, config, write_section)
+        elif not self._printer_in_config(context, config, printer_sections):
+            Logger.Blank()
+            Logger.Blank()
+            Logger.Warn(f"Printer section for Moonraker Instance with port {context.moonraker_port} not found in {Config.CONFIG_FILE_NAME}, adding it as new one.")
+            Logger.Warn(f"Please verify the config settings are correct after the install is complete in the {Config.CONFIG_FILE_NAME}.")
+            self._add_printer(f"moonraker_{context.moonraker_port}", context, config, write_section)
+        else:
+            Logger.Blank()
+            Logger.Blank()
+            Logger.Info(f"Printer section for Moonraker Instance with port {context.moonraker_port} found in {Config.CONFIG_FILE_NAME}, skipping adding it as new one.")
 
         if len(write_section) > 0:
             # If the file already exists, just append to it.
@@ -245,3 +250,20 @@ class Config:
                     Logger.Debug("Writing helper: # "+helper)
                     file_writer.write(f"# {helper}\n")
         file_writer.write("\n")
+
+    def _printer_in_config(self, context: Context, config: configparser.ConfigParser, printer_sections: List[str]) -> bool:
+        for sec in printer_sections:
+            uri = config.get(sec, "moonraker_uri", fallback="")
+            
+            if uri.find(f":{context.moonraker_port}/") != -1 and (uri.find("localhost") or uri.find("127.0.0.1")):
+                return True
+        return False
+
+    def _add_printer(self, name: str,context: Context, config: configparser.ConfigParser, write_section: List[str]):
+        sec = f"printer {name}"
+        write_section.append(sec)
+        config.add_section(sec)
+        config.set(sec, "moonraker_uri", f"ws://127.0.0.1:{context.moonraker_port}/websocket")
+        config.set(sec, "moonraker_api_key", "False")
+        config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
+        config.set(sec, "snapshot_rotation", "0")
