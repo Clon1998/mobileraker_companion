@@ -169,7 +169,9 @@ class Config:
 
             file_writer.write(f"{option}: {value}\n")
             helper_key = f"{section}.{option}"
+            Logger.Debug("Checking for helpers: "+helper_key)
             if helper_key in Config.CONFIG_HELPERS:
                 for helper in Config.CONFIG_HELPERS[helper_key]:
+                    Logger.Debug("Writing helper: # "+helper)
                     file_writer.write(f"# {helper}\n")
         file_writer.write("\n")
