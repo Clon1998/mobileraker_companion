@@ -79,8 +79,10 @@ class Config:
         
         # If there are no printer sections, add one.
         if len(printer_sections) == 0:
-            Logger.Info("No printer sections found, adding a default one.")
-            Logger.Warn("Please verify the config settings are correct after the install is complete.")
+            Logger.Blank()
+            Logger.Blank()
+            Logger.Warn(f"No printer sections found in {Config.CONFIG_FILE_NAME}, adding a default one.")
+            Logger.Warn(f"Please verify the config settings are correct after the install is complete in the {Config.CONFIG_FILE_NAME}.")
             Logger.Info("Note: If you have multiple printers, you will need to add them manually in the same file and format.")
             sec = "printer default"
             write_section.append(sec)
@@ -130,6 +132,7 @@ class Config:
                 Logger.Warn("Invalid number selection, try again.")
             except Exception as e:
                 Logger.Warn("Invalid input, try again. Logger.Error: "+str(e))
+        Logger.Info("Selected language: "+available_languages[respond_index])
         return available_languages[respond_index]
 
 
@@ -165,7 +168,8 @@ class Config:
 
 
             file_writer.write(f"{option}: {value}\n")
-            if f"{section}.{option}" in Config.CONFIG_HELPERS:
-                for helper in Config.CONFIG_HELPERS[option]:
+            helper_key = f"{section}.{option}"
+            if helper_key in Config.CONFIG_HELPERS:
+                for helper in Config.CONFIG_HELPERS[helper_key]:
                     file_writer.write(f"# {helper}\n")
         file_writer.write("\n")
