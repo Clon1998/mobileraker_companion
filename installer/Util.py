@@ -128,7 +128,7 @@ class Util:
             full_path = os.path.join(path, file_name)
             # Search sub folders
             if os.path.isdir(full_path):
-                tmp = self._scan_files(full_path, prefix, suffix, depth + 1)
+                tmp = Util.scan_files(full_path, prefix, suffix, depth + 1)
                 if tmp is not None:
                     for t in tmp:
                         results.append(t)
