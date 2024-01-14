@@ -87,7 +87,7 @@ class Config:
             sec = "printer default"
             write_section.append(sec)
             config.add_section(sec)
-            config.set(sec, "moonraker_uri", f"ws://127.0.0.1:/{context.moonraker_port}websocket")
+            config.set(sec, "moonraker_uri", f"ws://127.0.0.1:{context.moonraker_port}/websocket")
             config.set(sec, "moonraker_api_key", "False")
             config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
             config.set(sec, "snapshot_rotation", "0")
@@ -168,7 +168,7 @@ class Config:
 
 
             file_writer.write(f"{option}: {value}\n")
-            helper_key = f"{section}.{option}"
+            helper_key = f"{section}.{option}" if not section.startswith("printer ") else f"printer.{option}"
             Logger.Debug("Checking for helpers: "+helper_key)
             if helper_key in Config.CONFIG_HELPERS:
                 for helper in Config.CONFIG_HELPERS[helper_key]:
