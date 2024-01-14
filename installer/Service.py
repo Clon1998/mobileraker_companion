@@ -10,6 +10,8 @@ from .Configure import Configure
 # Responsible for creating, running, and ensuring the service is installed and running.
 class Service:
 
+    SERVICE_NUMBER = 80
+
     def install(self, context:Context):
         """
         Installs the system service based on the platform type.
@@ -84,14 +86,14 @@ class Service:
     def _sonic_pad_install(self, context:Context):
         # First, write the service file
         # Notes:
-        #   Set start to be 66, so we start after Moonraker.
+        #   Set start to be 80, so we start after Moonraker.
         #   OOM_ADJ=-17 prevents us from being killed in an OOM
-        startNumberStr = "66"
+        
         s = f'''\
 #!/bin/sh /etc/rc.common
 # Copyright (C) 2006-2011 OpenWrt.org
 
-START={startNumberStr}
+START={Service.SERVICE_NUMBER}
 STOP=1
 DEPEND=moonraker_service
 USE_PROCD=1

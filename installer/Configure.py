@@ -1,8 +1,8 @@
 import configparser
 import os
 
-from installer.Paths import Paths
-
+from .Service import Service
+from .Paths import Paths
 from .Util import Util
 from .Logging import Logger
 from .Context import Context, PlatformType
@@ -63,7 +63,7 @@ class Configure:
         elif context.platform == PlatformType.K1:
             # For the k1, there's only ever one moonraker and we know the exact service naming convention.
             # Note we use 76 to ensure we start after moonraker.
-            context.service_file_path = os.path.join(Paths.CrealityOsServiceFilePath, f"S66{Configure.SERVICE_NAME}_service")
+            context.service_file_path = os.path.join(Paths.CrealityOsServiceFilePath, f"S{Service.SERVICE_NUMBER}{Configure.SERVICE_NAME}_service")
         else:
             # For normal setups, use the convention that Klipper users
             # NOTE! For the Update class to work, the name must start with Configure.SERVICE_NAME

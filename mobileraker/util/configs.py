@@ -7,7 +7,6 @@ import time
 from typing import Any, Dict, Optional, Union
 
 import pytz
-import tzlocal
 
 home_dir = os.path.expanduser("~/")
 companion_dir = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -19,6 +18,20 @@ printer_data_config_dir = os.path.join(
 printer_data_logs_dir = os.path.join(
     home_dir, "printer_data", "logs")
 
+
+
+def get_local_timezone() -> str:
+    """
+    Returns the local timezone.
+
+    Thanks to https://www.reddit.com/user/destinal/ for this snippet.
+
+    return: The local timezone.
+    """
+    local_tz_offset = -time.timezone if (time.localtime().tm_isdst == 0) else -time.altzone
+    local_tz = pytz.timezone(f'Etc/GMT{local_tz_offset//3600:+d}')
+
+    return local_tz.zone if local_tz is None else 'Etc/UTC'
 
 class CompanionRemoteConfig:
 
@@ -73,7 +86,7 @@ class CompanionLocalConfig:
         self.language: str = self.config.get(
             'general', 'language', fallback='en')
         self.timezone_str: str = self.config.get(
-            'general', 'timezone', fallback=tzlocal.get_localzone_name())  # fallback to system timezone (Hopefully)
+            'general', 'timezone', fallback=get_local_timezone())  # fallback to system timezone (Hopefully)
         self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str if self.timezone_str is not None else "Greenwich")
         self.eta_format: str = self.config.get(
             'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')

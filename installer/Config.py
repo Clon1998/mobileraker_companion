@@ -3,10 +3,9 @@ from io import TextIOBase
 import os
 from typing import List, Optional
 
-import tzlocal
-
 
 from mobileraker.util.i18n import languages
+from mobileraker.util.configs import get_local_timezone
 
 from .Logging import Logger
 from .Context import Context, PlatformType
@@ -72,7 +71,7 @@ class Config:
 
 
             config.set("general", "language", self._ask_for_language())
-            config.set("general", "timezone", tzlocal.get_localzone_name())
+            config.set("general", "timezone", get_local_timezone())
             config.set("general", "eta_format", "%%d.%%m.%%Y, %%H:%%M:%%S")
             config.set("general", "include_snapshot", "True")
 
