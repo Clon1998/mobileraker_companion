@@ -129,7 +129,8 @@ ensure_creality_os_right_repo_path()
             cd $HOME/mobileraker_companion
             # Ensure state
             git reset --hard
-            git checkout main
+            # TODO: I dont want to checkout main. Just keep the current branch.
+            #git checkout main
             git pull
             # Run the install, if it fails, still do the clean-up of this repo.
             if [[ $IS_K1_OS -eq 1 ]]
