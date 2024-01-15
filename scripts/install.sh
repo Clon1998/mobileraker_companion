@@ -134,9 +134,9 @@ ensure_creality_os_right_repo_path()
             # Run the install, if it fails, still do the clean-up of this repo.
             if [[ $IS_K1_OS -eq 1 ]]
             then
-                sh ./install.sh "$@" || true
+                sh ./scripts/install.sh "$@" || true
             else
-                ./install.sh "$@" || true
+                ./scripts/install.sh "$@" || true
             fi
             installExit=$?
             # Delete this folder.
