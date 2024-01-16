@@ -74,7 +74,7 @@ The required Python packages for the Companion are listed in the [mobileraker-re
 
 # Companion - Installation
 
-Choose from several installation options for the MobileRaker Companion.
+Choose from several installation options for the Mobileraker Companion.
 
 ## Using the Installer
 
@@ -134,7 +134,7 @@ Adjust the installation method based on your preferences and system requirements
 
 # Companion - Multi-Printer
 
-The MobileRaker Companion is designed to support multiple printers. If you are using a single host for multiple Klipper and Moonraker instances, you can run the installation script described in [Using the Installer](#using-the-installer) multiple times. The script will intelligently handle the update of the `mobileraker.conf` file.
+The Mobileraker Companion is designed to support multiple printers. If you are using a single host for multiple Klipper and Moonraker instances, you can run the installation script described in [Using the Installer](#using-the-installer) multiple times. The script will intelligently handle the update of the `mobileraker.conf` file.
 
 Alternatively, you can manually edit the `mobileraker.conf` file to add a new `[printer <Name>]` section for each printer. Refer to the following section for detailed information about the configuration format.
 
