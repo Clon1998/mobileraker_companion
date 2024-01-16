@@ -112,7 +112,7 @@ class Config:
         self._link_mobileraker_conf(context)
         context.mobileraker_conf_link = os.path.join(context.printer_data_config_folder, 'mr-test.cfg')
         Logger.Warn(f'Teeest: {context.mobileraker_conf_link}')
-        Util.run_shell_command(f"ln -sf {context.mobileraker_conf_path} {context.mobileraker_conf_link}")
+        os.link(context.mobileraker_conf_path, context.mobileraker_conf_link)
 
     def _ask_for_language(self) -> str:
         Logger.Blank()
