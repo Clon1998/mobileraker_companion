@@ -131,15 +131,18 @@ ensure_creality_os_right_repo_path()
             # TODO: I dont want to checkout main. Just keep the current branch.
             #git checkout main
             git pull
+            # Log the current path after git pull        
+            log_info "Current path $(pwd)"
             # Run the install, if it fails, still do the clean-up of this repo.
             if [[ $IS_K1_OS -eq 1 ]]
             then
-                sh ./scripts/install.sh "$@" || true
+                sh $HOME/mobileraker_companion/scripts/install.sh "$@" || true
             else
-                ./scripts/install.sh "$@" || true
+                $HOME/mobileraker_companion/scripts/install.sh "$@" || true
             fi
             installExit=$?
             # Delete this folder.
+            log_info "Cleaning up the old repo folder. The new repo is in $HOME/mobileraker_companion"
             rm -fr $REPO_DIR
             # Take the user back to the new install folder.
             cd $HOME
