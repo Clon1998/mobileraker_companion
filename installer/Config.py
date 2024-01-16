@@ -110,8 +110,9 @@ class Config:
             Logger.Info("Wrote mobileraker config file to: "+path)
 
         self._link_mobileraker_conf(context)
-        Logger.Warn(f'Teeest: {os.path.join(context.printer_data_config_folder, Config.CONFIG_FILE_NAME)}')
-        Util.run_shell_command(f"ln -sf {context.mobileraker_conf_path} {context.printer_data_config_folder}/mr-test.cfg")
+        context.mobileraker_conf_link = os.path.join(context.printer_data_config_folder, 'mr-test.cfg')
+        Logger.Warn(f'Teeest: {context.mobileraker_conf_link}')
+        Util.run_shell_command(f"ln -sf {context.mobileraker_conf_path} {context.mobileraker_conf_link}")
 
     def _ask_for_language(self) -> str:
         Logger.Blank()
