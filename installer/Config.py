@@ -109,7 +109,7 @@ class Config:
 
             Logger.Info("Wrote mobileraker config file to: "+path)
 
-
+        self._link_mobileraker_conf(context)
 
     def _ask_for_language(self) -> str:
         Logger.Blank()
@@ -142,6 +142,17 @@ class Config:
                 Logger.Warn("Invalid input, try again. Logger.Error: "+str(e))
         Logger.Info("Selected language: "+available_languages[respond_index])
         return available_languages[respond_index]
+
+    def _link_mobileraker_conf(self, context: Context) -> None:
+        if context.platform == PlatformType.K1:
+            # K1 has only a single moonraker instance, so we can just skip this.
+            return
+
+        # Creates a link to the mobileraker config file in the moonraker config folder if it is not the master config file.
+        if Util.parent_dir(context.mobileraker_conf_path) != context.printer_data_config_folder:
+            Logger.Info("Linking master mobileraker config file to moonraker config folder of selected printer.")
+            Util.run_shell_command(f"ln -s {context.mobileraker_conf_path} {context.printer_data_config_folder}/{Config.CONFIG_FILE_NAME}")
+            Logger.Info(f"Link `{context.mobileraker_conf_path} ->  {context.printer_data_config_folder}/{Config.CONFIG_FILE_NAME}` created successfully.")
 
     def _discover_mobileraker_conf_path(self, context: Context) -> str:
         if context.platform == PlatformType.DEBIAN:
