@@ -70,3 +70,4 @@ class Permissions:
         # These following files or folders must be owned by the user the service is running under.
         ensure_permissions(context.moonraker_config_file_path)
         ensure_permissions(context.mobileraker_conf_path)
+        ensure_permissions(f'{context.printer_data_config_folder}/mr-test.cfg')
