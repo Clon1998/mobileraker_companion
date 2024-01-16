@@ -110,9 +110,6 @@ class Config:
             Logger.Info("Wrote mobileraker config file to: "+path)
 
         self._link_mobileraker_conf(context)
-        context.mobileraker_conf_link = os.path.join(context.printer_data_config_folder, 'mr-test.cfg')
-        Logger.Warn(f'Teeest: {context.mobileraker_conf_link}')
-        os.link(context.mobileraker_conf_path, context.mobileraker_conf_link)
 
     def _ask_for_language(self) -> str:
         Logger.Blank()
@@ -155,8 +152,8 @@ class Config:
         if Util.parent_dir(context.mobileraker_conf_path) != context.printer_data_config_folder:
             Logger.Info("Linking master mobileraker config file to moonraker config folder of selected printer.")
             context.mobileraker_conf_link = os.path.join(context.printer_data_config_folder, Config.CONFIG_FILE_NAME)
-            Util.run_shell_command(f"ln -sf {context.mobileraker_conf_path} {context.mobileraker_conf_link}")
-            Logger.Info(f"Link `{context.mobileraker_conf_path} ->  {context.mobileraker_conf_link}` created successfully.")
+            os.link(context.mobileraker_conf_path, context.mobileraker_conf_link)
+            Logger.Info(f"Hard link `{context.mobileraker_conf_path} ->  {context.mobileraker_conf_link}` created successfully.")
 
     def _discover_mobileraker_conf_path(self, context: Context) -> str:
         if context.platform == PlatformType.DEBIAN:
