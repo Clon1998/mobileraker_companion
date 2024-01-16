@@ -79,16 +79,25 @@ class Util:
             None
         """
         Logger.Debug("Updating file ownership for ["+file_path+"] to ["+username+"]...")
+
+        # Helper to set the ownership of a file or link.
+        def chown(path:str, uid:int, gid: int):
+            if os.path.islink(path):
+                os.lchown(path, uid, gid)
+                return
+            os.chown(path, uid, gid)
+
         uid = pwd.getpwnam(username).pw_uid
         gid = pwd.getpwnam(username).pw_gid
         # pylint: disable=no-member # Linux only
-        os.chown(file_path, uid, gid)
+        chown(file_path, uid, gid)
         # For file paths, this walk will do nothing
         for root, dirs, files in os.walk(file_path):
             for d in dirs:
-                os.chown(os.path.join(root, d), uid, gid)
+                chown(os.path.join(root, d), uid, gid)
             for f in files:
-                os.chown(os.path.join(root, f), uid, gid)
+                chown(os.path.join(root, f), uid, gid)
+
 
 
     # Helper to ask the user a question.
