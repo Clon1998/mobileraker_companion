@@ -3,8 +3,7 @@
 #
 # Installation script for mobileraker companion.
 #
-# Based on OctoEverywhere for Klipper, courtesy
- of Quinn Damerell
+# Based on OctoEverywhere for Klipper, courtesy of Quinn Damerell
 # OctoEverywhere: https://octoeverywhere.com
 #
 
