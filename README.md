@@ -51,7 +51,8 @@ Given that the companion is implemented as a Python script, there is potential f
 
 - **Manual Installation:** On non-Debian platforms, manual installation of the service and configuration is required. The automatic installer script may not work in these cases.
 
-> **WARNING**: While the companion has shown success on tested platforms, its behavior on other systems may vary. Community contributions and feedback on different platforms are encouraged.
+> [!WARNING]
+> While the companion has shown success on tested platforms, its behavior on other systems may vary. Community contributions and feedback on different platforms are encouraged.
 
 
 ## Companion - Prerequisites
@@ -69,6 +70,9 @@ The Mobileraker Companion is a standalone Python application designed to seamles
 The Companion was developed for Python 3.x. Please ensure that your system supports Python 3.x.
 
 ### Python Package Dependencies
+
+> [!TIP]
+> You can ignore this info if you are not planning on installing the companion manually. The installer, docker and kiauh will take care of that.
 
 The required Python packages for the Companion are listed in the [mobileraker-requirements.txt](scripts/mobileraker-requirements.txt) file.
 
@@ -212,7 +216,7 @@ moonraker_api_key: False
 # Moonraker API key if force_logins is active!
 ```
 
-> **Note**  
+> [!NOTE]
 >   Please restart the system service to ensure the new config values are used. 
 > You can do this by running the following terminal command:  
 > ```bash
