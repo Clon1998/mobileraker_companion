@@ -37,6 +37,10 @@ gcode:
 
 ## Placeholders:
 
+> [!WARNING]  
+> Custom notifications are designed to prevent redundant notifications. If you issue an additional `M117`/`MR_NOTIFY` with identical content to a previous notification, Mobileraker ensures that a new notification won't be triggered. This feature helps prevent unnecessary clutter in the user's notifications by only sending new and distinct information.
+
+
 When crafting your custom notification's title or body/message, you have the flexibility to incorporate placeholders that will be dynamically replaced by the companion. These placeholders allow you to convey specific information relevant to the notification context. Below is a list of available placeholders and their corresponding replacements:
 
 
@@ -53,7 +57,3 @@ When crafting your custom notification's title or body/message, you have the fle
 | `$progress`           | The printing progress (0-100)                                                                                                                                    | Only available during printing or paused                                   |
 | `$cur_layer`          | The current layer                                                                                                                                                | Only available during printing or paused                                   |
 | `$max_layer`          | The maximum layer of the file that is currently beeing printed                                                                                                   | Only available during printing or paused                                   |
-
-
-> **Warning**  
-> Custom notifications are designed to prevent redundant notifications. If you issue an additional `M117`/`MR_NOTIFY` with identical content to a previous notification, Mobileraker ensures that a new notification won't be triggered. This feature helps prevent unnecessary clutter in the user's notifications by only sending new and distinct information.
