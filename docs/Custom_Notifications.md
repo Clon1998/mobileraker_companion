@@ -10,7 +10,7 @@ Custom notifications can be achieved using the `M117` G-code command along with 
 
 - **Title and Body Notification**: Format: `M117 $MR$:<TITLE>|<BODY>`. Example: `M117 $MR$:Printer Status|The printer has reached the target temperature`.
 
-> **Recommendation**
+> [!TIP]
 > Using `M117` is the simplest method. However, if your printer has a display attached, the entire `M117` message will be shown on it. If this is the case, the next option might be preferable.
 
 ## Using the `MR_NOTIFY` Custom Macro
@@ -32,7 +32,7 @@ gcode:
     {% endif %}
 
 ```
-> **Warning**
+> [!WARNING]
 > Remember to include this macro in your printer's Klipper configuration file (e.g., printer.cfg). Do **NOT** include it in the mobileraker.conf file.
 
 ## Placeholders:
