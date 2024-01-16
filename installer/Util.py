@@ -78,6 +78,7 @@ class Util:
         Returns:
             None
         """
+        Logger.Debug("Updating file ownership for ["+file_path+"] to ["+username+"]...")
         uid = pwd.getpwnam(username).pw_uid
         gid = pwd.getpwnam(username).pw_gid
         # pylint: disable=no-member # Linux only
