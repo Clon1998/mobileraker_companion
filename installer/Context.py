@@ -125,6 +125,7 @@ class Context:
 
 
         self._mobileraker_conf_path:Optional[str] = None
+        self._mobileraker_conf_link:Optional[str] = None
 
 
     @property
@@ -156,6 +157,16 @@ class Context:
             bool: True if the moonraker service file path is set, False otherwise.
         """
         return self._moonraker_service_file_name is not None and len(self._moonraker_service_file_name) > 0
+
+    @property
+    def has_mobileraker_conf_link(self) -> bool:
+        """
+        Check if the mobileraker conf link is set.
+
+        Returns:
+            bool: True if the mobileraker conf link is set, False otherwise.
+        """
+        return self._mobileraker_conf_link is not None and len(self._mobileraker_conf_link) > 0
 
     # Getters and setters for the properties.
     @property
@@ -445,6 +456,28 @@ class Context:
         """
         self._mobileraker_conf_path = value.strip()
 
+    @property
+    def mobileraker_conf_link(self) -> str:
+        """
+        Get the mobileraker conf link.
+
+        Returns:
+            str: The mobileraker conf link.
+        """
+        if self._mobileraker_conf_link is None:
+            raise AttributeError("Mobileraker conf link was not set.")
+        return self._mobileraker_conf_link
+    
+    @mobileraker_conf_link.setter
+    def mobileraker_conf_link(self, value:str) -> None:
+        """
+        Set the mobileraker conf link.
+
+        Args:
+            value (str): The mobileraker conf link.
+        """
+        self._mobileraker_conf_link = value.strip()
+
 
     @staticmethod
     def setup(json_args: str):
@@ -518,6 +551,7 @@ class Context:
         # This path wont exist on the first install, because it won't be created until the end of the install.
         self._validate_property(self._service_file_path, error % "Service File Path")
         self._validate_property(self._mobileraker_conf_path, error % "Mobileraker Conf Path")
+        # Var self._mobileraker_conf_link can be null for K1 or if the instance is the master instance (We did not create one)
 
 
     def parse_bash_args(self):
