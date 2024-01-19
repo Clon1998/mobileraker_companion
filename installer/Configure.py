@@ -40,7 +40,7 @@ class Configure:
 
             # There really is no printer data folder, so make one that's unique per instance.
             # So based on the config folder, go to the root of it, and them make the folder "mobileraker_data"
-            context.printer_data_folder = os.path.join(Util.parent_dir(context.printer_data_folder), "mobileraker_data")
+            context.printer_data_folder = os.path.join(Util.parent_dir(context.printer_data_config_folder), "mobileraker_data")
             Util.ensure_dir_exists(context.printer_data_folder, context, True)
         else:
             # For now we assume the folder structure is the standard Klipper folder config,
