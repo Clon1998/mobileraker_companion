@@ -56,7 +56,7 @@ class Util:
             Logger.Info("Dir already exists.")
 
         if set_ownership:
-            Logger.Info("Setting owner permissions to the service user ["+context.UserName+"]...")
+            Logger.Info("Setting owner permissions to the service user ["+context.username+"]...")
             uid = pwd.getpwnam(context.username).pw_uid
             gid = pwd.getpwnam(context.username).pw_gid
             # pylint: disable=no-member # Linux only
