@@ -107,7 +107,7 @@ class Installer:
         if context.mode == OperationMode.UNINSTALL:
             # TODO: Adjust Uninstall to use the new context.
             uninstall = Uninstall()
-            uninstall.DoUninstall(context)
+            uninstall.uninstall(context)
             return
         
         # Next step is to find the moonraker files.
