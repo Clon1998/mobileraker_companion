@@ -235,7 +235,7 @@ primary_branch:main
 managed_services: mobileraker
 virtualenv: ~/mobileraker-env
 requirements: scripts/mobileraker-requirements.txt
-install_script: scripts/install-mobileraker-companion.sh
+install_script: scripts/install.sh
 ```
 # How it works
 The companion connects directly to your printer(s) and listens to the websocket for updates. Whenever the print status changes or a new M117 message is received, the companion triggers to process of constructing a new notification.
