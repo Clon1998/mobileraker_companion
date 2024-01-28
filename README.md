@@ -82,7 +82,7 @@ Choose from several installation options for the Mobileraker Companion.
 
 ## Using the Installer
 
-Clone the repository and run the Instalelr for a quick setup:
+Clone the repository and run the installer for a quick setup:
 
 ```bash
 cd ~/
