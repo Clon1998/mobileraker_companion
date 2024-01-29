@@ -38,7 +38,7 @@ class Service:
         else:
             raise NotImplementedError("Service install is not supported for this OS type yet.")
 
-
+        self._add_service_to_moonraker(context)
 
     # Install for debian setups
     def _debian_install(self, context:Context):
@@ -218,6 +218,36 @@ exit $?
         Service.restart_k1_service(context.service_file_path)
 
         Logger.Info("Service setup and start complete!")
+
+
+    def _add_service_to_moonraker(self, context:Context):
+        """
+        Adds the 'mobileraker' service to the moonraker.asvc file if it doesn't already exist.
+
+        Args:
+            context (Context): The context object containing the printer data folder.
+
+        Returns:
+            None
+        """
+        #moonraker.asvc located in printer_data
+        asvc_path = os.path.join(context.printer_data_folder, "moonraker.asvc")
+        Logger.Info("Adding service to moonraker asv file...")
+        # add 'mobileraker' to moonraker.asvc if it doesn't exist
+        if os.path.exists(asvc_path):
+            with open(asvc_path, "r") as file:
+                asvc = file.read()
+            if "mobileraker" not in asvc:
+                with open(asvc_path, "a") as file:
+                    file.write("mobileraker\n")
+                Logger.Info("Added service to moonraker asv file.")
+            else:
+                Logger.Info("Service already in moonraker asv file.")
+        else:
+            with open(asvc_path, "w") as file:
+                file.write("mobileraker\n")
+            Logger.Warn("Moonraker asv file did not exist, created it and added service to it.")
+            Logger.Warn("By default, moonraker should already provide this file, so this is unexpected.")
 
 
     @staticmethod
