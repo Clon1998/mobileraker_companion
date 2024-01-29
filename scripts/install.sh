@@ -308,7 +308,7 @@ ensure_creality_os_right_repo_path
 
 
 # Check if cmd line arg "-uninstall" is passed, if so, do not run the system package install.
-if [[ $1 != "-uninstall" ]]
+if [[ ! " $@ " =~ " -uninstall " ]]
 then
     # Next, make sure our required system packages are installed.
     # These are required for other actions in this script, so it must be done first.
