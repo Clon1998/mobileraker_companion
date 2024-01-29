@@ -1,6 +1,8 @@
 import os
 import shutil
 
+from installer import Config
+
 from .Context import Context, PlatformType
 from .Logging import Logger
 from .Configure import Configure
@@ -36,21 +38,20 @@ class Uninstall:
         if len(found_services) == 0:
             Logger.Warn("No companion was found to remove")
             return
+        Logger.Info(f"Found {len(found_services)} services to remove.")
 
         # TODO - We need to cleanup more, but for now, just make sure any services are shutdown.
         Logger.Info("Stopping service...")
         for service in found_services:
+            service_file = os.path.join(Paths.service_file_folder(context), service)
+            os.remove(service_file)
             if context.platform == PlatformType.SONIC_PAD:
-                # We need to build the fill name path
-                service_file = os.path.join(Paths.CrealityOsServiceFilePath, service)
                 Logger.Debug(f"Full service path: {service_file}")
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command(f"{service_file} stop", False)
                 Util.run_shell_command(f"{service_file} disable", False)
                 os.remove(service_file)
             elif context.platform == PlatformType.K1:
-                # We need to build the fill name path
-                service_file = os.path.join(Paths.CrealityOsServiceFilePath, service)
                 Logger.Debug(f"Full service path: {service_file}")
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command(f"{service_file} stop", False)
@@ -60,6 +61,8 @@ class Uninstall:
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command("systemctl stop "+service, False)
                 Util.run_shell_command("systemctl disable "+service, False)
+                Util.run_shell_command("systemctl daemon-reload")
+                os.remove(service_file)
             else:
                 raise Exception("This OS type doesn't support uninstalling at this time.")
 
@@ -67,6 +70,20 @@ class Uninstall:
         # TODO - We need to do a total cleanup of all files.
         if context.platform == PlatformType.K1:
             self._cleanup_k1()
+        elif context.platform == PlatformType.SONIC_PAD:
+            self._cleanup_sonic_pad()
+        elif context.platform == PlatformType.DEBIAN:
+            self._cleanup_debian(context)
+        
+        
+        # Common cleanup for all platforms.
+    
+        # Delete the installer log file.
+        self._delete_if_exists(os.path.join(Util.parent_dir(context.repo_root), 'mr-companion-installer.log') )
+        # Delete the python virtual env.
+        self._delete_if_exists(context.virtual_env)
+        # Delete the repo root.
+        self._delete_if_exists(context.repo_root)
 
         Logger.Blank()
         Logger.Blank()
@@ -78,12 +95,27 @@ class Uninstall:
         Logger.Blank()
 
 
+    def _cleanup_debian(self, context:Context):
+        # Cleanup the companion config file for each printer.
+
+        # Show a formatted message to the user that states, that he will have to manually remove the config file.
+        Logger.Blank()
+        Logger.Warn("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        Logger.Warn("  The companion config file for each printer will not be removed, you must do this manually.")
+        Logger.Warn("  The config file is normally located at the same location as the moonraker config file.")
+        Logger.Warn("  It will be named something like: mobileraker.conf")
+        Logger.Warn("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        Logger.Blank()
+        Logger.Blank()
+
+        # Ask the user to confirm they understand.
+        r =  input("Press enter to continue.")
+        return
+
+
     # For the K1, we know a the fixed paths where everything must be installed.
     # There's only one instance of moonraker, so there's no need to worry about multiple setups.
     def _cleanup_k1(self):
-        # In modern setups, the env is here. In very few early installs, it's in /usr/share
-        self._delete_if_exists("/usr/data/mobileraker-env")
-        self._delete_if_exists("/usr/share/mobileraker-env")
 
         # Delete any log files we have, there might be some rolling backups.
         self._delete_files_in_dir("/usr/data/printer_data/logs", "mobileraker")
@@ -91,8 +123,18 @@ class Uninstall:
         self._delete_files_in_dir("/usr/data/printer_data/config", "mobileraker")
         # Remove our system config file include in the moonraker file, if there is one.
         # self._cleanup_moonraker_cfg("/usr/data/printer_data/config/moonraker.conf")
-        # Delete the installer file if it's still there
-        self._delete_if_exists("/usr/data/mr-companion-installer.log")
+        
+
+
+    def _cleanup_sonic_pad(self):
+        # Delete config file, for sonic pad, we know that it must be in the master:
+        self._delete_files_in_dir(f"{Paths.CrealityOsUserDataPath_SonicPad}/printer_config", "mobileraker")
+        # Delete any log files we have, there might be some rolling backups.
+        self._delete_files_in_dir(f"{Paths.CrealityOsUserDataPath_SonicPad}/printer_logs", "mobileraker")
+
+        # Remove our system config file include in the moonraker file, if there is one.
+        # self._cleanup_moonraker_cfg("/usr/data/printer_data/config/moonraker.conf")
+
 
 
     # Deletes a file or directory, if it exists.

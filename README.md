@@ -25,6 +25,7 @@ Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling p
 - [Companion - Multi-Printer](#companion---multi-printer)
 - [Companion - Config](#companion---config)
 - [Moonraker - Update manager](#moonraker---update-manager)
+- [Uninstall](#uninstall)
 - [How it works](#how-it-works)
   - [Custom Notifications](#custom-notifications)
   - [Visualization of the architecture](#visualization-of-the-architecture)
@@ -237,6 +238,15 @@ virtualenv: ~/mobileraker-env
 requirements: scripts/mobileraker-requirements.txt
 install_script: scripts/install.sh
 ```
+
+# Uninstall
+To uninstall the companion, please run the following command:
+
+```bash
+cd ~/mobileraker_companion
+./scripts/install.sh -uninstall
+```
+
 # How it works
 The companion connects directly to your printer(s) and listens to the websocket for updates. Whenever the print status changes or a new M117 message is received, the companion triggers to process of constructing a new notification.
 To construct a new noticiation it follows the following schema:

@@ -55,10 +55,10 @@ class Context:
         # Generation 1
         #
 
-        # This is the repo root of OctoEverywhere. This is common for all instances.
+        # This is the repo root. This is common for all instances.
         self._repo_root:Optional[str] = None
 
-        # This is the path to the PY virtual env for OctoEverywhere. This is common for all instances.
+        # This is the path to the PY virtual env for Companion. This is common for all instances.
         self._virtual_env:Optional[str] = None
 
         # This is the user name of the user who launched the install script.
@@ -600,9 +600,9 @@ class Context:
                 elif raw_arg == "noatuoselect":
                     Logger.Info("Disabling Moonraker instance auto selection.")
                     self.auto_select_moonraker = False
-                elif raw_arg == "update":
-                    Logger.Info("Setup running in update mode.")
-                    self.mode = OperationMode.UPDATE
+                # elif raw_arg == "update":
+                #     Logger.Info("Setup running in update mode.")
+                #     self.mode = OperationMode.UPDATE
                 elif raw_arg == "uninstall":
                     Logger.Info("Setup running in uninstall mode.")
                     self.mode = OperationMode.UNINSTALL
