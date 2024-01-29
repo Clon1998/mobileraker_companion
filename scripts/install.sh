@@ -315,11 +315,8 @@ then
     install_or_update_system_dependencies
     # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
     install_or_update_python_env
-<<<<<<< HEAD
-=======
-fi
->>>>>>> 3ef8e96 (Fixed if)
 
+fi
 # Before launching our PY script, set any vars it needs to know
 # Pass all of the command line args, so they can be handled by the PY script.
 # Note that USER can be empty string on some systems when running as root. This is fixed in the PY installer.
