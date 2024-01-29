@@ -124,7 +124,9 @@ class Context:
         self._moonraker_port:Optional[int] = None
 
 
+        # Generation 3 - This is the path to the mobileraker conf file (master).
         self._mobileraker_conf_path:Optional[str] = None
+        # Generation 3 - This is the path to the mobileraker conf link, if we linked it to the master.
         self._mobileraker_conf_link:Optional[str] = None
 
 
