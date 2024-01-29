@@ -50,19 +50,19 @@ class Uninstall:
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command(f"{service_file} stop", False)
                 Util.run_shell_command(f"{service_file} disable", False)
-                os.remove(service_file)
+                self._delete_if_exists(service_file)
             elif context.platform == PlatformType.K1:
                 Logger.Debug(f"Full service path: {service_file}")
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command(f"{service_file} stop", False)
                 Util.run_shell_command("ps -ef | grep 'mobileraker' | grep -v grep | awk '{print $1}' | xargs -r kill -9", False)
-                os.remove(service_file)
+                self._delete_if_exists(service_file)
             elif context.platform == PlatformType.DEBIAN:
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command("systemctl stop "+service, False)
                 Util.run_shell_command("systemctl disable "+service, False)
                 Util.run_shell_command("systemctl daemon-reload")
-                os.remove(service_file)
+                self._delete_if_exists(service_file)
             else:
                 raise Exception("This OS type doesn't support uninstalling at this time.")
 
