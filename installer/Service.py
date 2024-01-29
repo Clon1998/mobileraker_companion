@@ -258,7 +258,7 @@ exit $?
         # Using this start-stop-daemon system, if we issue too many start, stop, restarts in quickly, the PID file gets out of
         # sync and multiple process can spawn. That's bad because the websockets will disconnect each other.
         # So we will run this run command to ensure that all of the process are dead, before we start a new one.
-        Util.run_shell_command("ps -ef | grep 'moonraker_octoeverywhere' | grep -v grep | awk '{print $1}' | xargs -r kill -9", throwOnBadReturnCode)
+        Util.run_shell_command("ps -ef | grep 'mobileraker' | grep -v grep | awk '{print $1}' | xargs -r kill -9", throwOnBadReturnCode)
         Util.run_shell_command(f"{serviceFilePath} start", throwOnBadReturnCode)
 
 

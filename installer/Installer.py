@@ -29,8 +29,7 @@ class Installer:
             Logger.Error(str(tb))
             Logger.Blank()
             Logger.Blank()
-            #TODO: Correct message
-            Logger.Header("Please contact our support team directly at support@octoeverywhere.com so we can help you fix this issue!")
+            Logger.Header("Please contact our support team directly at help@mobileraker.com so we can help you fix this issue!")
             Logger.Blank()
             Logger.Blank()
 
