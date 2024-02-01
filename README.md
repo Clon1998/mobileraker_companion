@@ -115,7 +115,8 @@ services:
     volumes:
     - /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf
 ```
->**WARNING**: Adjust the paths in the volume mounts to point to your `mobileraker.conf` file.
+> [!WARNING]
+> Adjust the paths in the volume mounts to point to your `mobileraker.conf` file.
 
 ## Manual Installation
 
@@ -191,6 +192,9 @@ snapshot_rotation: 0
 # Optional
 
 ```
+> [!IMPORTANT]
+> Please note that the configuration entry for the printer's Moonraker endpoint is `moonraker_uri`, not `moonraker_url`. It's a common mistake to confuse these two. Ensure you're using the correct key in your configuration.
+
 
 The Companion searches for a `Mobileraker.conf` file in the following locations (in order of precedence):
 1. `~/Mobileraker.conf`
