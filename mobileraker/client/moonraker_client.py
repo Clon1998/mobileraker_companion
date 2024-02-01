@@ -14,6 +14,7 @@ class MoonrakerClient:
             self,
             moonraker_uri: str,
             moonraker_api: Optional[str],
+            printer_name: str,
             loop: AbstractEventLoop,
     ) -> None:
         super().__init__()
@@ -26,7 +27,7 @@ class MoonrakerClient:
             Dict[str, Any], Optional[str]], Any]] = {}
         self._req_blocking: Dict[int, Future] = {}
         self._rec_task: Optional[Task] = None
-        self._logger: logging.Logger = logging.getLogger('mobileraker.jrpc')
+        self._logger: logging.Logger = logging.getLogger(f'mobileraker.{printer_name}.jrpc')
         self._connection_listeners: List[Callable[[bool], None]] = []
 
     async def connect(self) -> None:
