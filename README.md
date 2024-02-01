@@ -82,14 +82,14 @@ The required Python packages for the Companion are listed in the [mobileraker-re
 Choose from several installation options for the Mobileraker Companion.
 
 ## Using the Installer
+The installer provides the most convenient method for installing Mobileraker, particularly suited for a seamless experience for most users. However, we recommend exploring the alternative installation methods based on your preferences and system requirements.
 
-Clone the repository and run the installer for a quick setup:
+To utilize the installer, open your terminal and execute the following commands:
 
 ```bash
 cd ~/
 git clone https://github.com/Clon1998/mobileraker_companion.git
-cd mobileraker_companion
-./scripts/install.sh
+./mobileraker_companion/scripts/install.sh
 ```
 
 ## Installation via Kiauh
