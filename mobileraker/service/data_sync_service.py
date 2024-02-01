@@ -39,13 +39,14 @@ class DataSyncService:
     def __init__(
             self,
             jrpc: MoonrakerClient,
+            printer_name: str,
             loop: AbstractEventLoop,
             resync_retries: int = 30,
     ) -> None:
         super().__init__()
         self._jrpc: MoonrakerClient = jrpc
         self._loop: AbstractEventLoop = loop
-        self._logger: logging.Logger = logging.getLogger('mobileraker.sync')
+        self._logger: logging.Logger = logging.getLogger(f'mobileraker.{printer_name}.sync')
         self._queried_for_session: bool = False
         self.klippy_ready: bool = False
         self.server_info: ServerInfo = ServerInfo()

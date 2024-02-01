@@ -54,6 +54,7 @@ def main() -> None:
             jrpc = MoonrakerClient(
                 p_config['moonraker_uri'],
                 p_config['moonraker_api_key'],
+                printer_name,
                 event_loop)
 
             snc = SnapshotClient(
@@ -63,6 +64,7 @@ def main() -> None:
 
             dsd = DataSyncService(
                 jrpc=jrpc,
+                printer_name=printer_name,
                 loop=event_loop,
             )
 
