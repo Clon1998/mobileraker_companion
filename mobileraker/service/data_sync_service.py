@@ -107,7 +107,9 @@ class DataSyncService:
             elif key == 'gcode_move':
                 self.gcode_move = self.gcode_move.updateWith(object_data)
             elif key == 'gcode_macro TIMELAPSE_TAKE_FRAME':
-                self.timelapse_pause = object_data.get('is_paused', None)
+                # Using the self.timelapse_pause as fallback is required here since the object might be missing. In that case we want to keep the current state.
+                self.timelapse_pause = object_data.get('is_paused', self.timelapse_pause)
+                self._logger.debug("Timelapse is paused: %s", self.timelapse_pause)
 
         # Kinda hacky but this works!
         # It would be better if the _notify_listeners()/sync current file is called in a different context since this method should only parse!
