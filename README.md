@@ -25,10 +25,10 @@ Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling p
 - [Companion - Multi-Printer](#companion---multi-printer)
 - [Companion - Config](#companion---config)
 - [Moonraker - Update manager](#moonraker---update-manager)
+- [Custom Notifications](#custom-notifications)
 - [Uninstall](#uninstall)
-- [How it works](#how-it-works)
-  - [Custom Notifications](#custom-notifications)
-  - [Visualization of the architecture](#visualization-of-the-architecture)
+- [How It Works](#how-it-works)
+  - [Visualization of the Architecture](#visualization-of-the-architecture)
 - [Changelog](#changelog)
   - [\[v0.4.0\] - 2023-08-26](#v040---2023-08-26)
   - [\[v0.3.0\] - 2023-03-29](#v030---2023-03-29)
@@ -243,6 +243,14 @@ requirements: scripts/mobileraker-requirements.txt
 install_script: scripts/install.sh
 ```
 
+# Custom Notifications
+
+Unlock the full potential of Mobileraker Companion with personalized notifications tailored to your needs.
+
+To add custom notifications, refer to the comprehensive documentation available in [Custom Notification](docs/Custom_Notifications.md). This guide provides detailed information, guiding you through the process of creating and optimizing custom notifications to suit your preferences and workflow.
+
+
+
 # Uninstall
 To uninstall the companion, please run the following command:
 
@@ -251,19 +259,27 @@ cd ~/mobileraker_companion
 ./scripts/install.sh -uninstall
 ```
 
-# How it works
-The companion connects directly to your printer(s) and listens to the websocket for updates. Whenever the print status changes or a new M117 message is received, the companion triggers to process of constructing a new notification.
-To construct a new noticiation it follows the following schema:
-1. Get the notification configuration for all registered devices from moonrakers database. The Mobileraker Android/IOS app automatically registers your device into your printer's moonraker device and syncs the notification configs to it.
-2. Construct the notification's title and content based on the fetched notificaton configs
-3. Pass the notification to the FCM Backend in order to submit it to Apple's/Google's Push services
+# How It Works
 
-## Custom Notifications
-Custom notifications are supported through the gcode command `M117` and the prefix `$MR$:`.
-Learn more in the [Custom Notification](docs/Custom_Notifications.md) documentation file.
+Mobileraker Companion seamlessly connects to your 3D printer(s) and actively listens to the WebSocket for updates. Whenever the print status changes or a new M117 message is received, the companion triggers the process of constructing a new notification.
 
-## Visualization of the architecture
-![Sys Diag](assets/Mobileraker-System_witthbg.png)
+The workflow unfolds as follows:
+
+1. **Notification Configuration Retrieval:**
+   The companion retrieves the notification configuration for all registered devices from Moonraker's database. Your device is automatically registered by the Mobileraker Android/IOS app, syncing the notification configs to your printer.
+
+2. **Notification Construction:**
+   Based on the fetched notification configurations, the companion constructs the notification's title and content, ensuring relevance and accuracy.
+
+3. **Notification Submission:**
+   The constructed notification is then submitted to the FCM (Firebase Cloud Messaging) Backend to be relayed to Apple's/Google's Push services for delivery.
+
+## Visualization of the Architecture
+
+![System Diagram](assets/Mobileraker-System_witthbg.png)
+
+This visual representation illustrates the intricate architecture, showcasing how Mobileraker Companion orchestrates notifications in conjunction with your 3D printer.
+
 
 
 # Changelog
