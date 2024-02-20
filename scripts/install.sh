@@ -325,10 +325,15 @@ cd "${REPO_DIR}" > /dev/null || exit 1
 
 # Disable the timestamp on the next line, since this is part of a larger function.
 # shellcheck disable=SC2154
-"${ENV_DIR}"/bin/python3 -m mobileraker.bootstrap "$PY_LAUNCH_JSON"
+if [ "$IS_SONIC_PAD_OS" -eq 1 ] || [ "$IS_K1_OS" -eq 1 ]; then
+    # Creality OS only has a root user and we can't use sudo.
+    "${ENV_DIR}/bin/python3" -B -m installer "$PY_LAUNCH_JSON"
+else
+    sudo "${ENV_DIR}/bin/python3" -B -m installer "$PY_LAUNCH_JSON"
+fi
 PY_EXIT_CODE=$?
 
-cd "${CURRENT_DIR}" || exit 1
+cd "${CURRENT_DIR}" > /dev/null || exit 1
 
 log_info "Python installer done."
 
@@ -339,9 +344,3 @@ if [ $PY_EXIT_CODE -eq 0 ]; then
 else
     log_error "Installation of Mobileraker Companion failed!"
 fi
-log_blank
-log_important "Please restart your printer's system to start using Mobileraker Companion."
-log_important "After restart, open a browser to: http://$(hostname -I | cut -d' ' -f1):1883"
-log_info "If you are still having trouble, please check the troubleshooting section on the Github page:"
-log_info "https://github.com/Clon1998/mobileraker_companion#troubleshooting"
-log_blank
