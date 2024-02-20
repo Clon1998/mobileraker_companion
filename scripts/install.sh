@@ -240,7 +240,7 @@ install_or_update_python_env()
 
     # Finally, ensure our plugin requirements are installed and updated.
     log_info "Installing or updating required python libs..."
-    "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt --cache-dir "${CACHE_DIR}"
+    TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
     log_info "Python libs installed."
 }
 
