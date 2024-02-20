@@ -108,7 +108,7 @@ log_blank()
 ensure_creality_os_right_repo_path()
 {
     # TODO - re-enable this for the  || [ "$IS_K1_OS" -eq 1 ] after the github script updates.
-    if [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
+    if [ "$IS_SONIC_PAD_OS" -eq 1 ] || [ "$IS_K1_OS" -eq 1 ]; then
         # Due to the K1 shell, we have to use grep rather than any bash string contains syntax.
         if echo "$REPO_DIR" | grep "$HOME" - > /dev/null; then
             return
