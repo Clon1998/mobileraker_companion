@@ -30,6 +30,7 @@ class Util:
     def run_shell_command(cmd:str, throwOnNonZeroReturnCode:bool = True):
         # Check=true means if the process returns non-zero, an exception is thrown.
         # Shell=True is required so non absolute commands like "systemctl restart ..." work
+        Logger.Debug(f"RunShellCommand - {cmd}")
         result = subprocess.run(cmd, check=throwOnNonZeroReturnCode, shell=True, capture_output=True, text=True)
         Logger.Debug(f"RunShellCommand - {cmd} - return: {result.returncode}; error - {result.stderr}")
         return (result.returncode, result.stdout, result.stderr)
