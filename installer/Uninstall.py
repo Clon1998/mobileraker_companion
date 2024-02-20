@@ -55,7 +55,7 @@ class Uninstall:
                 Logger.Debug(f"Full service path: {service_file}")
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command(f"{service_file} stop", False)
-                Util.run_shell_command("ps -ef | grep 'mobileraker' | grep -v grep | awk '{print $1}' | xargs -r kill -9", False)
+                Util.run_shell_command("ps -ef | grep 'mobileraker-env' | grep -v grep | grep -v install | awk '{print $1}' | xargs -r kill -9", False)
                 self._delete_if_exists(service_file)
             elif context.platform == PlatformType.DEBIAN:
                 Logger.Info(f"Stopping and deleting {service}...")
