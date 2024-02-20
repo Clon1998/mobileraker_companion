@@ -252,10 +252,10 @@ MMMMMMMMMMMMMMMMMMMMMMWNX0xolldk0XWWMMMMMMMMMMMMMMMMMMMM
 MMMMMMMMMMMMMMMMMMWNKkdl:;;:;,,',:ldk0XWMMMMMMMMMMMMMMMM
 MMMMMMMMMMMMMWNX0xoc;,;:ldxxxxdoc:,'',:lxOKNWWMMMMMMMMMM
 MMMMMMMMMWNKOxl:;,;codxkkdooddxxkkdol:;''';coxOXWMMMMMMM
-MMMMMWXOdl:,,:loxkkkdoloodxkOOkxxxxkkxdlc;''',:lkXWMMMM
-MMMMWk:,,,,,:x0OdoloddxxxddxkkOOOOkxddxkOOl''''',cOWMMM
-MMMMWOc,,,,,,:lddxkkxdollllodddxxkO000kkxo:'''''':OWMMM
-MMMMWXOkxo:;,,,,,;loddooodxO0KK0Okkkkkdl;,'''',:lk0KXWM
+MMMMMMWXOdl:,,:loxkkkdoloodxkOOkxxxxkkxdlc;''',:lkXWMMMM
+MMMMMWk:,,,,,:x0OdoloddxxxddxkkOOOOkxddxkOOl''''',cOWMMM
+MMMMMWOc,,,,,,:lddxkkxdollllodddxxkO000kkxo:'''''':OWMMM
+MMMMWXOkxo:;,,,,,;loddooodxO0KK0Okkkkkdl;,'''',:odkOXWMM
 MMMWXo;:ldxxdl:,,',,,:clx0NWWWWNKkoc;,''''';ldxxoc;,lKMM
 MMMMNx:,,,;coxkxoc;,,,,,;cokkkdl;,''''',:odxdl:,''':kNMM
 MMMWXK0xl:,,,,:lxkkdl:,,,,,,'''''''';ldxxoc,'''';lx0KXWM
@@ -266,9 +266,10 @@ MMMMNKxl;,,,,,;cdO00xo:,,,,,,,''''',coxkdl;'''''';lkKWMM
 MMMMMMWNKxl:,,,,,,:ok00koc;,'''';ldkkdc,'''''';lxKWMMMMM
 MMMMMMMMMMNKxo:,,,,,,:ok00Odlcoxkxo:,'''''';lkKNMMMMMMMM
 MMMMMMMMMMMMWNKkl:,,,,,,;lxOOkxl:,'''''';lkKWMMMMMMMMMMM
-MMMMMMMMMMMMMMMWNKko:,,,,'''''';lkKWMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMWNKko:,'',;lkKWMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMWNKkddkKWMMMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMWNKkl:,,,,,,;;,''''''';lkKWMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMMMMWNKko:,,,,'''''';lkKWMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMWNKko:,'',;lkKWMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMMMMMWKkddkKWMMMMMMMMMMMMMMMMMMMMMMM
 EOF
 log_blank
 log_important "                  Mobileraker Companion"
