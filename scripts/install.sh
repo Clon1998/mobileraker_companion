@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 #
 # Installation script for mobileraker companion.
@@ -17,10 +17,9 @@ set -e
 
 # The K1 and K1 Max run an OS called Buildroot. We detect that by looking at the os-release file.
 # Quick note about bash vars, to support all OSs, we use the most compilable var version. This means we use ints
-# where 1 is true and 0 is false, and we use comparisons like this [[ $IS_K1_OS -eq 1 ]]
+# where 1 is true and 0 is false, and we use comparisons like this [ "$IS_K1_OS" -eq 1 ]
 IS_K1_OS=0
-if grep -Fqs "ID=buildroot" /etc/os-release
-then
+if grep -Fqs "ID=buildroot" /etc/os-release; then
     IS_K1_OS=1
     # On the K1, we always want the path to be /usr/data
     # /usr/share has very limited space, so we don't want to use it.
@@ -31,18 +30,15 @@ fi
 # Next, we try to detect if this OS is the Sonic Pad OS.
 # The Sonic Pad runs openwrt. We detect that by looking at the os-release file.
 IS_SONIC_PAD_OS=0
-if grep -Fqs "sonic" /etc/openwrt_release
-then
+if grep -Fqs "sonic" /etc/openwrt_release; then
     IS_SONIC_PAD_OS=1
     # On the K1, we always want the path to be /usr/share, this is where the rest of the klipper stuff is.
     HOME="/usr/share"
 fi
 
-
 # Get the path where this script is executing
-SCRIPT_DIR=$(readlink -f $(dirname "$0"))
-REPO_DIR=$(readlink -f $SCRIPT_DIR/..)
-
+SCRIPT_DIR=$(readlink -f "$(dirname "$0")")
+REPO_DIR=$(readlink -f "$SCRIPT_DIR/..")
 
 # This is the root of where our py virtual env will be. Note that all instances share this same
 # virtual environment. This how the rest of the system is, where all other services, even with multiple instances, share the same
@@ -67,43 +63,43 @@ SONIC_PAD_DEP_LIST="python3 python3-pip"
 #
 # Console Write Helpers
 #
-c_default=$(echo -en "\e[39m")
-c_green=$(echo -en "\e[92m")
-c_yellow=$(echo -en "\e[93m")
-c_magenta=$(echo -en "\e[35m")
-c_red=$(echo -en "\e[91m")
-c_cyan=$(echo -en "\e[96m")
+c_default=$(printf "\033[39m")
+c_green=$(printf "\033[92m")
+c_yellow=$(printf "\033[93m")
+c_magenta=$(printf "\033[35m")
+c_red=$(printf "\033[91m")
+c_cyan=$(printf "\033[96m")
 
 log_header()
 {
-    echo -e "${c_magenta}$1${c_default}"
+    printf "%s\n" "${c_magenta}$1${c_default}"
 }
 
 log_important()
 {
-    echo -e "${c_yellow}$1${c_default}"
+    printf "%s\n" "${c_yellow}$1${c_default}"
 }
 
 log_error()
 {
     log_blank
-    echo -e "${c_red}$1${c_default}"
+    printf "%s\n" "${c_red}$1${c_default}"
     log_blank
 }
 
 log_info()
 {
-    echo -e "${c_green}$1${c_default}"
+    printf "%s\n" "${c_green}$1${c_default}"
 }
 
 log_blue()
 {
-    echo -e "${c_cyan}$1${c_default}"
+    printf "%s\n" "${c_cyan}$1${c_default}"
 }
 
 log_blank()
 {
-    echo ""
+    printf "\n"
 }
 
 #
@@ -111,21 +107,19 @@ log_blank()
 # To enforce that, we will move the repo where it should be.
 ensure_creality_os_right_repo_path()
 {
-    # TODO - re-enable this for the  || [[ $IS_K1_OS -eq 1 ]] after the github script updates.
-    if [[ $IS_SONIC_PAD_OS -eq 1 ]]
-    then
+    # TODO - re-enable this for the  || [ "$IS_K1_OS" -eq 1 ] after the github script updates.
+    if [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
         # Due to the K1 shell, we have to use grep rather than any bash string contains syntax.
-        if echo $REPO_DIR |grep "$HOME" - > /dev/null
-        then
+        if echo "$REPO_DIR" | grep "$HOME" - > /dev/null; then
             return
         else
             log_info "Current path $REPO_DIR"
             log_error "For the Creality devices the mobileraker_companion repo must be cloned into $HOME/mobileraker_companion"
             log_important "Moving the repo and running the install again..."
-            cd $HOME
+            cd "$HOME" || exit 1
             # Send errors to null, if the folder already exists this will fail.
             git clone https://github.com/Clon1998/mobileraker_companion.git mobileraker_companion 2>/dev/null || true
-            cd $HOME/mobileraker_companion
+            cd "$HOME/mobileraker_companion" || exit 1
             # Ensure state
             git reset --hard
             # TODO: I dont want to checkout main. Just keep the current branch.
@@ -134,20 +128,19 @@ ensure_creality_os_right_repo_path()
             # Log the current path after git pull        
             log_info "Current path $(pwd)"
             # Run the install, if it fails, still do the clean-up of this repo.
-            if [[ $IS_K1_OS -eq 1 ]]
-            then
-                sh $HOME/mobileraker_companion/scripts/install.sh "$@" || true
+            if [ "$IS_K1_OS" -eq 1 ]; then
+                sh "$HOME/mobileraker_companion/scripts/install.sh" "$@" || true
             else
-                $HOME/mobileraker_companion/scripts/install.sh "$@" || true
+                "$HOME/mobileraker_companion/scripts/install.sh" "$@" || true
             fi
             installExit=$?
             # Delete this folder.
             log_info "Cleaning up the old repo folder. The new repo is in $HOME/mobileraker_companion"
-            rm -fr $REPO_DIR
+            rm -fr "$REPO_DIR"
             # Take the user back to the new install folder.
-            cd $HOME
+            cd "$HOME" || exit 1
             # Exit.
-            exit $installExit
+            exit "$installExit"
         fi
     fi
 }
@@ -161,7 +154,7 @@ ensure_py_venv()
     # If the service is already running, we can't recreate the virtual env so if it exists, don't try to create it.
     # Note that we check the bin folder exists in the path, since we mkdir the folder below but virtualenv might fail and leave it empty.
     ENV_BIN_PATH="$ENV_DIR/bin"
-    if [ -d $ENV_BIN_PATH ]; then
+    if [ -d "$ENV_BIN_PATH" ]; then
         # This virtual env refresh fails on some devices when the service is already running, so skip it for now.
         # This only refreshes the virtual environment package anyways, so it's not super needed.
         #log_info "Virtual environment found, updating to the latest version of python."
@@ -171,8 +164,7 @@ ensure_py_venv()
 
     log_info "No virtual environment found, creating one now."
     mkdir -p "${ENV_DIR}"
-    if [[ $IS_K1_OS -eq 1 ]]
-    then
+    if [ "$IS_K1_OS" -eq 1 ]; then
         # The K1 requires we setup the virtualenv like this.
         python3 /usr/lib/python3.8/site-packages/virtualenv.py -p /usr/bin/python3 --system-site-packages "${ENV_DIR}"
     else
@@ -188,15 +180,13 @@ install_or_update_system_dependencies()
 {
     log_header "Checking required system packages are installed..."
 
-    if [[ $IS_K1_OS -eq 1 ]]
-    then
+    if [ "$IS_K1_OS" -eq 1 ]; then
         # The K1 by default doesn't have any package manager. In some cases
         # the user might install opkg via the 3rd party moonraker installer script.
         # But in general, PY will already be installed, so there's no need to try.
         # On the K1, the only we thing we ensure is that virtualenv is installed via pip.
         pip3 install virtualenv
-    elif [[ $IS_SONIC_PAD_OS -eq 1 ]]
-    then
+    elif [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
         # The sonic pad always has opkg installed, so we can make sure these packages are installed.
         opkg install ${SONIC_PAD_DEP_LIST}
         pip3 install virtualenv
@@ -210,13 +200,13 @@ install_or_update_system_dependencies()
         
         log_important "You might be asked for your system password - this is required to install the required system packages."
         # Thanks to Quinn Damerell for allowing us to use the OctoEverywhere API for this.
-        sudo date -s `curl --insecure 'https://octoeverywhere.com/api/util/date' 2>/dev/null` || true
+        sudo date -s "$(curl --insecure 'https://octoeverywhere.com/api/util/date' 2>/dev/null)" || true
 
         # These we require to be installed in the OS.
         # Note we need to do this before we create our virtual environment
     
         log_info "Installing required system packages. This can take a few minutes..."
-        sudo apt update 1>/dev/null` 2>/dev/null` || true
+        sudo apt update 1>/dev/null 2>/dev/null || true
         sudo apt install --yes ${PKGLIST}
 
         # The PY lib Pillow depends on some system packages that change names depending on the OS.
@@ -259,10 +249,10 @@ MMMMMMMMMMMMMMMMMMMMMMWNX0xolldk0XWWMMMMMMMMMMMMMMMMMMMM
 MMMMMMMMMMMMMMMMMMWNKkdl:;;:;,,',:ldk0XWMMMMMMMMMMMMMMMM
 MMMMMMMMMMMMMWNX0xoc;,;:ldxxxxdoc:,'',:lxOKNWWMMMMMMMMMM
 MMMMMMMMMWNKOxl:;,;codxkkdooddxxkkdol:;''';coxOXWMMMMMMM
-MMMMMMWXOdl:,,:loxkkkdoloodxkOOkxxxxkkxdlc;''',:lkXWMMMM
-MMMMMWk:,,,,,:x0OdoloddxxxddxkkOOOOkxddxkOOl''''',cOWMMM
-MMMMMWOc,,,,,,:lddxkkxdollllodddxxkO000kkxo:'''''':OWMMM
-MMMMWXOkxo:;,,,,,;loddooodxO0KK0Okkkkkdl;,'''',:odkOXWMM
+MMMMMWXOdl:,,:loxkkkdoloodxkOOkxxxxkkxdlc;''',:lkXWMMMM
+MMMMWk:,,,,,:x0OdoloddxxxddxkkOOOOkxddxkOOl''''',cOWMMM
+MMMMWOc,,,,,,:lddxkkxdollllodddxxkO000kkxo:'''''':OWMMM
+MMMMWXOkxo:;,,,,,;loddooodxO0KK0Okkkkkdl;,'''',:lk0KXWM
 MMMWXo;:ldxxdl:,,',,,:clx0NWWWWNKkoc;,''''';ldxxoc;,lKMM
 MMMMNx:,,,;coxkxoc;,,,,,;cokkkdl;,''''',:odxdl:,''':kNMM
 MMMWXK0xl:,,,,:lxkkdl:,,,,,,'''''''';ldxxoc,'''';lx0KXWM
@@ -273,10 +263,9 @@ MMMMNKxl;,,,,,;cdO00xo:,,,,,,,''''',coxkdl;'''''';lkKWMM
 MMMMMMWNKxl:,,,,,,:ok00koc;,'''';ldkkdc,'''''';lxKWMMMMM
 MMMMMMMMMMNKxo:,,,,,,:ok00Odlcoxkxo:,'''''';lkKNMMMMMMMM
 MMMMMMMMMMMMWNKkl:,,,,,,;lxOOkxl:,'''''';lkKWMMMMMMMMMMM
-MMMMMMMMMMMMMMMWNKkl:,,,,,,;;,''''''';lkKWMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMWNKko:,,,,'''''';lkKWMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMWNKko:,'',;lkKWMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMWKkddkKWMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMWNKko:,,,,'''''';lkKWMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMMMWNKko:,'',;lkKWMMMMMMMMMMMMMMMMMMMMMMMM
+MMMMMMMMMMMMMMMMMMMMMWNKkddkKWMMMMMMMMMMMMMMMMMMMMMMMMMM
 EOF
 log_blank
 log_important "                  Mobileraker Companion"
@@ -293,12 +282,10 @@ log_blank
 log_blank
 
 # These are helpful for debugging.
-if [[ $IS_SONIC_PAD_OS -eq 1 ]]
-then
+if [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
     echo "Running in Sonic Pad OS mode"
 fi
-if [[ $IS_K1_OS -eq 1 ]]
-then
+if [ "$IS_K1_OS" -eq 1 ]; then
     echo "Running in K1 and K1 Max OS mode"
 fi
 
@@ -308,8 +295,7 @@ ensure_creality_os_right_repo_path
 
 
 # Check if cmd line arg "-uninstall" is passed, if so, do not run the system package install.
-if [[ ! " $@ " =~ " -uninstall " ]]
-then
+if ! printf '%s' "$@" | grep -q " -uninstall "; then
     # Next, make sure our required system packages are installed.
     # These are required for other actions in this script, so it must be done first.
     install_or_update_system_dependencies
@@ -322,7 +308,7 @@ fi
 # Note that USER can be empty string on some systems when running as root. This is fixed in the PY installer.
 USERNAME=${USER}
 USER_HOME=${HOME}
-CMD_LINE_ARGS=${@}
+CMD_LINE_ARGS="$@"
 
 # ToDo Adjust passed args to match the needs of mobileraker
 PY_LAUNCH_JSON="{\"REPO_DIR\":\"${REPO_DIR}\",\"ENV_DIR\":\"${ENV_DIR}\",\"USERNAME\":\"${USERNAME}\",\"USER_HOME\":\"${USER_HOME}\",\"CMD_LINE_ARGS\":\"${CMD_LINE_ARGS}\"}"
@@ -334,27 +320,28 @@ log_info "Bootstrap done. Starting python installer..."
 export PYTHONPATH="${REPO_DIR}"
 
 # We can't use pushd on Creality OS, so do this.
-CURRENT_DIR=${pwd}
-cd ${REPO_DIR} > /dev/null
+CURRENT_DIR=$(pwd)
+cd "${REPO_DIR}" > /dev/null || exit 1
 
-# Disable the PY cache files (-B), since they will be written as sudo, since that's what we launch the PY
-# installer as. The PY installer must be sudo to write the service files, but we don't want the
-# complied files to stay in the repo with sudo permissions.
-if [[ $IS_SONIC_PAD_OS -eq 1 ]] || [[ $IS_K1_OS -eq 1 ]]
-then
-    # Creality OS only has a root user and we can't use sudo.
-    ${ENV_DIR}/bin/python3 -B -m installer ${PY_LAUNCH_JSON}
+# Disable the timestamp on the next line, since this is part of a larger function.
+# shellcheck disable=SC2154
+"${ENV_DIR}"/bin/python3 -m mobileraker.bootstrap "$PY_LAUNCH_JSON"
+PY_EXIT_CODE=$?
+
+cd "${CURRENT_DIR}" || exit 1
+
+log_info "Python installer done."
+
+# All done, let the user know what to do next.
+log_blank
+if [ $PY_EXIT_CODE -eq 0 ]; then
+    log_important "Installation of Mobileraker Companion was successful."
 else
-    sudo ${ENV_DIR}/bin/python3 -B -m installer ${PY_LAUNCH_JSON}
+    log_error "Installation of Mobileraker Companion failed!"
 fi
-
-cd ${CURRENT_DIR} > /dev/null
-
-# Check the output of the py script.
-retVal=$?
-if [ $retVal -ne 0 ]; then
-    log_error "Failed to complete setup. Error Code: ${retVal}"
-fi
-
-# Note the rest of the user flow (and terminal info) is done by the PY script, so we don't need to report anything else.
-exit $retVal
+log_blank
+log_important "Please restart your printer's system to start using Mobileraker Companion."
+log_important "After restart, open a browser to: http://$(hostname -I | cut -d' ' -f1):1883"
+log_info "If you are still having trouble, please check the troubleshooting section on the Github page:"
+log_info "https://github.com/Clon1998/mobileraker_companion#troubleshooting"
+log_blank
