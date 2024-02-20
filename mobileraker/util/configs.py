@@ -111,12 +111,12 @@ class CompanionLocalConfig:
     # Check if file exists, ignoring if it starts capatilized or lowercase!
     def __check_file_exists(self, path: Union[pathlib.Path, str], filename: str) -> Optional[str]:
         file = os.path.join(path, filename)
-        if os.path.exists(file):
+        if os.path.exists(file) and filename in os.listdir(path):
             return file
         # Also check lower case config name!
         file = os.path.join(path, filename.lower())
-        if os.path.exists(file):
-            return file
+        if os.path.exists(file) and filename.lower() in os.listdir(path):
+            return file.lower()
 
     # Checks the companion dir
     def __check_companion_dir(self) -> Optional[str]:
