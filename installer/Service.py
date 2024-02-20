@@ -256,6 +256,7 @@ exit $?
 
     @staticmethod
     def restart_k1_service(serviceFilePath:str, throwOnBadReturnCode = True):
+        Logger.Debug("Service file path: "+serviceFilePath)
         # These some times fail depending on the state of the service, which is fine.
         Util.run_shell_command(f"{serviceFilePath} stop", False)
 
