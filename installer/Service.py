@@ -195,6 +195,10 @@ exit $?
 
         # Write the run script
         Logger.Debug("Run script file contents to write: "+script)
+
+        # Make the directory if it doesn't exist.      
+        os.makedirs(os.path.dirname(script_path), exist_ok=True)
+
         Logger.Info("Creating service run script...")
         with open(script_path, "w", encoding="utf-8") as file:
             file.write(script)
