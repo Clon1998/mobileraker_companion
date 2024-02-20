@@ -278,5 +278,8 @@ class Config:
         config.add_section(sec)
         config.set(sec, "moonraker_uri", f"ws://127.0.0.1:{context.moonraker_port}/websocket")
         config.set(sec, "moonraker_api_key", "False")
-        config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
+        if context.platform == PlatformType.K1:
+            config.set(sec, "snapshot_uri", "http://127.0.0.1:4408/webcam/?action=snapshot")
+        else:
+            config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
         config.set(sec, "snapshot_rotation", "0")
