@@ -235,9 +235,12 @@ install_or_update_python_env()
     log_info "Updating PIP if needed... (this can take a few seconds or so)"
     "${ENV_DIR}"/bin/python -m pip install --upgrade pip
 
+    # Set the cache directory based on the OS
+    CACHE_DIR="${ENV_DIR}/cache"
+
     # Finally, ensure our plugin requirements are installed and updated.
     log_info "Installing or updating required python libs..."
-    "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
+    "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt --cache-dir "${CACHE_DIR}"
     log_info "Python libs installed."
 }
 
