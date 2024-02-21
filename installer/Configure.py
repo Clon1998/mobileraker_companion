@@ -42,6 +42,10 @@ class Configure:
             # So based on the config folder, go to the root of it, and them make the folder "mobileraker_data"
             context.printer_data_folder = os.path.join(Util.parent_dir(context.printer_data_config_folder), "mobileraker_data")
             Util.ensure_dir_exists(context.printer_data_folder, context, True)
+
+            # The moonraker asvc file is always in the same location. At least we dont want to add it to all printers.
+            # /mnt/UDISK/.moonraker_database.<number>/moonraker.asvc
+            context.moonraker_asvc_file_path = os.path.join(Paths.CrealityOsUserDataPath_SonicPad, ".moonraker_database/moonraker.asvc")
         else:
             # For now we assume the folder structure is the standard Klipper folder config,
             # thus the full moonraker config path will be .../something_data/config/moonraker.conf
@@ -49,6 +53,9 @@ class Configure:
             # Note that the K1 uses this standard folder layout as well.
             context.printer_data_config_folder = Util.parent_dir(context.moonraker_config_file_path)
             context.printer_data_folder = Util.parent_dir(context.printer_data_config_folder)
+
+            # The moonraker asvc file should always be at the printer_data root, at least on modern setups.
+            context.moonraker_asvc_file_path = os.path.join(context.printer_data_folder, "moonraker.asvc")
             Logger.Debug("Printer data folder: "+context.printer_data_folder)
 
 

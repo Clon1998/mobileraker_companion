@@ -129,6 +129,9 @@ class Context:
         # Generation 3 - This is the path to the mobileraker conf link, if we linked it to the master.
         self._mobileraker_conf_link:Optional[str] = None
 
+        # Generation 3 - This is the path to the moonraker asvc file.
+        self._moonraker_asvc_file_path:Optional[str] = None
+
 
     @property
     def is_creality_os(self) -> bool:
@@ -169,6 +172,16 @@ class Context:
             bool: True if the mobileraker conf link is set, False otherwise.
         """
         return self._mobileraker_conf_link is not None and len(self._mobileraker_conf_link) > 0
+    
+    @property
+    def has_moonraker_asvc_file_path(self) -> bool:
+        """
+        Check if the moonraker asvc file path is set.
+
+        Returns:
+            bool: True if the moonraker asvc file path is set, False otherwise.
+        """
+        return self._moonraker_asvc_file_path is not None and len(self._moonraker_asvc_file_path) > 0
 
     # Getters and setters for the properties.
     @property
@@ -480,6 +493,28 @@ class Context:
         """
         self._mobileraker_conf_link = value.strip()
 
+
+    @property
+    def moonraker_asvc_file_path(self) -> str:
+        """
+        Get the moonraker asvc file path.
+
+        Returns:
+            str: The moonraker asvc file path.
+        """
+        if self._moonraker_asvc_file_path is None:
+            raise AttributeError("Moonraker asvc file path was not set.")
+        return self._moonraker_asvc_file_path
+    
+    @moonraker_asvc_file_path.setter
+    def moonraker_asvc_file_path(self, value:str) -> None:
+        """
+        Set the moonraker asvc file path.
+
+        Args:
+            value (str): The moonraker asvc file path.
+        """
+        self._moonraker_asvc_file_path = value.strip()
 
     @staticmethod
     def setup(json_args: str):

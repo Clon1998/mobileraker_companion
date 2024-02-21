@@ -235,7 +235,10 @@ exit $?
             None
         """
         #moonraker.asvc located in printer_data
-        asvc_path = os.path.join(context.printer_data_folder, "moonraker.asvc")
+        if not context.has_moonraker_asvc_file_path:
+            Logger.Warn("Moonraker asv file path not found, skipping adding service to moonraker.")
+            return
+        asvc_path = context.moonraker_asvc_file_path
         Logger.Info("Adding service to moonraker asv file...")
         # add 'mobileraker' to moonraker.asvc if it doesn't exist
         if os.path.exists(asvc_path):
