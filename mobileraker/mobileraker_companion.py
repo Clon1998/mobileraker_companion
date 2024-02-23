@@ -17,7 +17,7 @@ from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.service.data_sync_service import DataSyncService
 from mobileraker.util.configs import CompanionLocalConfig, CompanionRemoteConfig
 
-from mobileraker.util.functions import get_software_version, is_valid_uuid, normalized_progress_interval_reached
+from mobileraker.util.functions import generate_notifcation_id_from_uuid, get_software_version, is_valid_uuid, normalized_progress_interval_reached
 from mobileraker.util.i18n import translate, translate_replace_placeholders
 from mobileraker.util.notification_placeholders import replace_placeholders
 
@@ -303,7 +303,7 @@ class MobilerakerCompanion:
 
         body = translate_replace_placeholders(
             body, cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(111, f'{cfg.machine_id}-statusUpdates', title, body)
+        return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 0), f'{cfg.machine_id}-statusUpdates', title, body)
 
     def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
         # If progress notifications are disabled, skip it!
@@ -335,7 +335,7 @@ class MobilerakerCompanion:
             'print_progress_title', cfg, cur_snap, self.companion_config)
         body = translate_replace_placeholders(
             'print_progress_body', cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(222, f'{cfg.machine_id}-progressUpdates', title, body)
+        return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 1), f'{cfg.machine_id}-progressUpdates', title, body)
 
     def _live_activity_update(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[LiveActivityContentDto]:
         # If uuid is none or empty returm
@@ -415,7 +415,7 @@ class MobilerakerCompanion:
         self._logger.info(
             'Got M117/Custom: %s. This translated into: %s -  %s', message, title, body)
 
-        return NotificationContentDto(333, f'{cfg.machine_id}-m117', title, body)
+        return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 2), f'{cfg.machine_id}-m117', title, body)
 
     def _take_webcam_image(self, dtos: List[DeviceRequestDto]) -> None:
         if not self.companion_config.include_snapshot:

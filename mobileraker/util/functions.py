@@ -51,3 +51,17 @@ def normalized_progress_interval_reached(last: int, current: int, interval: int)
     """
     noramlized = last - (last % interval)
     return abs(current - noramlized) >= interval
+
+def generate_notifcation_id_from_uuid(uuid_string: str, offset: int) -> int:
+    """
+    Generate a notification ID from a UUID string and an offset.
+
+    Args:
+        uuid_string (str): The UUID string.
+        offset (int): The offset value.
+
+    Returns:
+        int: The generated notification ID.
+    """
+    # Convert the UUID into an integer and take the modulus in a single line
+    return (uuid.UUID(uuid_string).int + offset) % 2147483647 + 1
