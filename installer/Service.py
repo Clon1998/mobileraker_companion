@@ -1,4 +1,5 @@
 import os
+import re
 
 
 from .Util import Util
@@ -244,7 +245,7 @@ exit $?
         if os.path.exists(asvc_path):
             with open(asvc_path, "r") as file:
                 asvc = file.read()
-            if "mobileraker" not in asvc:
+            if not re.search(r'^\s*mobileraker\s*$', asvc, re.MULTILINE):
                 with open(asvc_path, "a") as file:
                     file.write("mobileraker\n")
                 Logger.Info("Added service to moonraker asv file.")
