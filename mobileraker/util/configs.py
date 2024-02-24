@@ -7,7 +7,6 @@ import time
 from typing import Any, Dict, Optional, Union
 
 import pytz
-import tzlocal
 
 home_dir = os.path.expanduser("~/")
 companion_dir = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -19,6 +18,20 @@ printer_data_config_dir = os.path.join(
 printer_data_logs_dir = os.path.join(
     home_dir, "printer_data", "logs")
 
+
+
+def get_local_timezone() -> str:
+    """
+    Returns the local timezone.
+
+    Thanks to https://www.reddit.com/user/destinal/ for this snippet.
+
+    return: The local timezone.
+    """
+    local_tz_offset = -time.timezone if (time.localtime().tm_isdst == 0) else -time.altzone
+    local_tz = pytz.timezone(f'Etc/GMT{local_tz_offset//3600:+d}')
+
+    return local_tz.zone if local_tz is None else 'Etc/UTC'
 
 class CompanionRemoteConfig:
 
@@ -73,7 +86,7 @@ class CompanionLocalConfig:
         self.language: str = self.config.get(
             'general', 'language', fallback='en')
         self.timezone_str: str = self.config.get(
-            'general', 'timezone', fallback=tzlocal.get_localzone_name())  # fallback to system timezone (Hopefully)
+            'general', 'timezone', fallback=get_local_timezone())  # fallback to system timezone (Hopefully)
         self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str if self.timezone_str is not None else "Greenwich")
         self.eta_format: str = self.config.get(
             'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')
@@ -84,9 +97,7 @@ class CompanionLocalConfig:
             f'Main section read, language:"{self.language}", timezone:"{self.timezone_str}", eta_format:"{self.eta_format}", include_snapshot:"{self.include_snapshot}"')
 
     def get_config_file_location(self, passed_config: str) -> Optional[str]:
-        logging.info("Passed config file is: %s" % passed_config)
-
-        foundFile = passed_config if os.path.exists(passed_config) else self.__check_companion_dir() or self.__check_klipper_config_dir(
+        foundFile = self.__check_passed_config(passed_config) or self.__check_companion_dir() or self.__check_klipper_config_dir(
         ) or self.__check_printer_data_config_dir() or self.__check_user_dir()
 
         if foundFile and os.path.exists(foundFile):
@@ -126,3 +137,12 @@ class CompanionLocalConfig:
     def __check_user_dir(self) -> Optional[str]:
         logging.info("Checking user dir")
         return self.__check_file_exists(home_dir, self.default_file_name)
+    
+    # Check user-dir -> ~/Mobileraker.conf
+    def __check_passed_config(self, passed_config: str) -> Optional[str]:
+        logging.info("Checking if passed config exists: %s" % passed_config)
+    
+        if os.path.exists(passed_config):
+            return passed_config
+    
+

@@ -1,6 +1,11 @@
 # Custom Notifications in Mobileraker
 
-Mobileraker offers two alternatives for issuing custom notifications. You can choose the method that best suits your needs:
+- [Custom Notifications in Mobileraker](#custom-notifications-in-mobileraker)
+  - [Using `M117` with the Prefix `$MR$:`](#using-m117-with-the-prefix-mr)
+  - [Using the `MR_NOTIFY` Custom Macro](#using-the-mr_notify-custom-macro)
+  - [Placeholders](#placeholders)
+
+Mobileraker provides you with two distinct options for sending custom notifications. Evaluate the features of each method to determine the one that aligns best with your specific requirements:
 
 ## Using `M117` with the Prefix `$MR$:`
 
@@ -10,7 +15,7 @@ Custom notifications can be achieved using the `M117` G-code command along with 
 
 - **Title and Body Notification**: Format: `M117 $MR$:<TITLE>|<BODY>`. Example: `M117 $MR$:Printer Status|The printer has reached the target temperature`.
 
-> **Recommendation**
+> [!TIP]
 > Using `M117` is the simplest method. However, if your printer has a display attached, the entire `M117` message will be shown on it. If this is the case, the next option might be preferable.
 
 ## Using the `MR_NOTIFY` Custom Macro
@@ -32,10 +37,15 @@ gcode:
     {% endif %}
 
 ```
-> **Warning**
+> [!WARNING]
 > Remember to include this macro in your printer's Klipper configuration file (e.g., printer.cfg). Do **NOT** include it in the mobileraker.conf file.
 
-## Placeholders:
+## Placeholders
+
+> [!WARNING]  
+> Custom notifications have been crafted with a mechanism to mitigate redundant notifications. Specifically, if an additional `M117`/`MR_NOTIFY` command is issued with content identical to a prior notification, Mobileraker guarantees that a new notification will not be triggered. This functionality is implemented to avoid unnecessary clutter in the user's notifications, ensuring that only novel and distinct information is conveyed.
+
+
 
 When crafting your custom notification's title or body/message, you have the flexibility to incorporate placeholders that will be dynamically replaced by the companion. These placeholders allow you to convey specific information relevant to the notification context. Below is a list of available placeholders and their corresponding replacements:
 
@@ -53,7 +63,3 @@ When crafting your custom notification's title or body/message, you have the fle
 | `$progress`           | The printing progress (0-100)                                                                                                                                    | Only available during printing or paused                                   |
 | `$cur_layer`          | The current layer                                                                                                                                                | Only available during printing or paused                                   |
 | `$max_layer`          | The maximum layer of the file that is currently beeing printed                                                                                                   | Only available during printing or paused                                   |
-
-
-> **Warning**  
-> Custom notifications are designed to prevent redundant notifications. If you issue an additional `M117`/`MR_NOTIFY` with identical content to a previous notification, Mobileraker ensures that a new notification won't be triggered. This feature helps prevent unnecessary clutter in the user's notifications by only sending new and distinct information.

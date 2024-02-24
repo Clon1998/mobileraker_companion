@@ -157,3 +157,6 @@ cython_debug/
 #.idea/
 .idea/
 .DS_Store
+
+# Helper files for the k1 printer series
+.k1

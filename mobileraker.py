@@ -18,7 +18,7 @@ def main() -> None:
 
     parser.add_argument(
         "-l", "--logfile", default=os.path.join(printer_data_logs_dir if os.path.exists(printer_data_logs_dir) else '/tmp', "mobileraker.log"), metavar='<logfile>',
-        help="log file name and location")
+        help="Log File Location or log file absolute path")
     parser.add_argument(
         "-n", "--nologfile", action='store_true',
         help="disable logging to a file")
