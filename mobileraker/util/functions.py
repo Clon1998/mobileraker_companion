@@ -49,6 +49,7 @@ def normalized_progress_interval_reached(last: int, current: int, interval: int)
     Returns:
         bool: True if the current progress exceeds the normalized threshold, False otherwise.
     """
+    # logging.info(f"!!!last: {last}, current: {current}, interval: {interval}")
     noramlized = last - (last % interval)
     return abs(current - noramlized) >= interval
 
@@ -65,3 +66,29 @@ def generate_notifcation_id_from_uuid(uuid_string: str, offset: int) -> int:
     """
     # Convert the UUID into an integer and take the modulus in a single line
     return (uuid.UUID(uuid_string).int + offset) % 2147483647 + 1
+
+
+
+def compare_version(a: str, b: str) -> int:
+    """
+    Compare two version strings.
+    
+
+    Args:
+        a (str): The first version string.
+        b (str): The second version string.
+
+    Returns:
+        int: 0 if the versions are equal, 1 if a is greater than b, -1 if a is less than b.
+    """
+    a = a.split("-")[0]
+    b = b.split("-")[0]
+    aVersions = list(map(int, a.split(".")))
+    bVersions = list(map(int, b.split(".")))
+
+    for i in range(3):
+        if aVersions[i] > bVersions[i]:
+            return 1
+        if aVersions[i] < bVersions[i]:
+            return -1
+    return 0

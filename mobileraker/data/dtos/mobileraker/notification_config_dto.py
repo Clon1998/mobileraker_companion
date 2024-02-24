@@ -26,7 +26,8 @@ from typing import Any, Dict, List, Optional
 #       "created": "",
 #       "lastModified": "",
 #       "liveActivity": ""
-#     }
+#     },
+#     "version": "2.6.11-android"
 # }
 
 # These are bundeleted in moonraker DB in an array/map -> each device has its own config! (Use the uuid of the machine class of flutter as id!)
@@ -40,6 +41,7 @@ class DeviceNotificationEntry:
         self.machine_id: str  # Flutter: machine.uuid
         self.machine_name: str
         self.language: str = 'en'
+        self.version: Optional[str] = None # App version
         self.settings: NotificationSettings
         self.snap: NotificationSnap
         self.apns: Optional[APNs] = None
@@ -58,6 +60,8 @@ class DeviceNotificationEntry:
         cfg.snap = NotificationSnap.fromJSON(
             json['snap']) if 'snap' in json and json['snap'] else NotificationSnap()
         cfg.apns = APNs.fromJSON(json['apns']) if 'apns' in json and json['apns'] else None
+        cfg.version = json['version'] if 'version' in json else None
+
 
         return cfg
 
@@ -66,6 +70,14 @@ class DeviceNotificationEntry:
             type(self).__name__,
             ', '.join('%s=%s' % item for item in vars(self).items())
         )
+
+    @property
+    def is_android(self) -> bool:
+        return self.version is not None and 'android' in self.version
+    
+    @property
+    def is_ios(self) -> bool:
+        return self.version is not None and 'ios' in self.version
 
     # def __eq__(self, o: object) -> bool:
     #     if not isinstance(o, CompanionRequestDto):

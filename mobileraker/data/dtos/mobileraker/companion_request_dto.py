@@ -38,6 +38,33 @@ class NotificationContentDto(ContentDto):
         return json
 
 
+class ProgressNotificationContentDto(ContentDto):
+    def __init__(self,
+                 progress: int, # (0 - 100)
+                 id: int,
+                 channel: str,
+                 title: str,
+                 body: str,
+                 ):
+        super().__init__()
+        self.id: int = id
+        self.channel: str = channel
+        self.title: str = title
+        self.body: str = body
+        self.progress: int = progress
+
+    def toJSON(self) -> Dict[str, Any]:
+        json = {
+            "progress": self.progress,
+            "id": self.id,
+            "channel": self.channel,
+            "title": self.title,
+            "body": self.body,
+        }
+
+        return json
+
+
 class LiveActivityContentDto(ContentDto):
     def __init__(self,
                  token: str,
@@ -64,10 +91,12 @@ class LiveActivityContentDto(ContentDto):
 
 class DeviceRequestDto:
     def __init__(self,
+                 version: int,
                  printer_id: str,
                  token: str,
                  notifcations: List[ContentDto],
                  ):
+        self.version: int = version
         self.printer_id: str = printer_id
         self.token: str = token
         self.notifcations:  List[ContentDto] = notifcations
@@ -78,6 +107,7 @@ class DeviceRequestDto:
             notifications.append(n.toJSON())
 
         return {
+            "version": self.version,
             "printerIdentifier": self.printer_id,
             "token": self.token,
             "notifications": notifications,

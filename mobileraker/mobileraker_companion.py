@@ -2,7 +2,7 @@ from asyncio import AbstractEventLoop, Lock
 import asyncio
 import base64
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 import time
 
 
@@ -11,13 +11,13 @@ from mobileraker.client.mobileraker_fcm_client import MobilerakerFcmClient
 from mobileraker.client.moonraker_client import MoonrakerClient
 from mobileraker.client.snapshot_client import SnapshotClient
 from mobileraker.data.dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
-from mobileraker.data.dtos.mobileraker.companion_request_dto import ContentDto, DeviceRequestDto, FcmRequestDto, LiveActivityContentDto, NotificationContentDto
+from mobileraker.data.dtos.mobileraker.companion_request_dto import ContentDto, DeviceRequestDto, FcmRequestDto, LiveActivityContentDto, NotificationContentDto, ProgressNotificationContentDto
 from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.service.data_sync_service import DataSyncService
 from mobileraker.util.configs import CompanionLocalConfig, CompanionRemoteConfig
 
-from mobileraker.util.functions import generate_notifcation_id_from_uuid, get_software_version, is_valid_uuid, normalized_progress_interval_reached
+from mobileraker.util.functions import compare_version, generate_notifcation_id_from_uuid, get_software_version, is_valid_uuid, normalized_progress_interval_reached
 from mobileraker.util.i18n import translate, translate_replace_placeholders
 from mobileraker.util.notification_placeholders import replace_placeholders
 
@@ -104,7 +104,7 @@ class MobilerakerCompanion:
             if not cfg.fcm_token:
                 continue
             self._logger.info(
-                'Evaluate for machineID %s, cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.snap, cfg.settings)
+                'Evaluate for machineID %s, cfg.version: %s , cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.version, cfg.snap, cfg.settings)
             notifications: List[ContentDto] = []
 
             state_noti = self._state_notification(cfg, snapshot)
@@ -116,8 +116,8 @@ class MobilerakerCompanion:
             progress_noti = self._progress_notification(cfg, snapshot)
             if progress_noti is not None:
                 notifications.append(progress_noti)
-                self._logger.info('ProgressNoti: %s - %s',
-                                    progress_noti.title, progress_noti.body)
+                self._logger.info('%s: %s - %s',
+                                    type(progress_noti).__name__, progress_noti.title, progress_noti.body)
 
             m117_noti = self._custom_notification(cfg, snapshot, True)
             if m117_noti is not None:
@@ -144,10 +144,12 @@ class MobilerakerCompanion:
 
             self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s', len(
                 notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None)
-
+            
             if notifications:
                 # Set a webcam img to all DTOs if available
                 dto = DeviceRequestDto(
+                    # Version 2 is used to indicate that we want to use flattened structure of awesome notifications. This is only available in 2.6.10 and later
+                    version= 2 if cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0 else 1,
                     printer_id=cfg.machine_id,
                     token=cfg.fcm_token,
                     notifcations=notifications
@@ -305,10 +307,24 @@ class MobilerakerCompanion:
             body, cfg, cur_snap, self.companion_config)
         return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 0), f'{cfg.machine_id}-statusUpdates', title, body)
 
-    def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
+    def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[Union[NotificationContentDto, ProgressNotificationContentDto]]:
+        """
+        Generates a progress notification based on the given configuration and current printer snapshot.
+
+        Args:
+            cfg (DeviceNotificationEntry): The device notification configuration.
+            cur_snap (PrinterSnapshot): The current printer snapshot.
+
+        Returns:
+            Optional[ContentDto]: The generated progress notification content, or None if no notification should be issued.
+        """
         # If progress notifications are disabled, skip it!
         if cfg.settings.progress_config == -1:
             return None
+        
+        # starting from 2.6.10 we can use the progress notification for android. If not, use the text based one
+        use_progress_notification = cfg.is_android and cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0
+
 
         # only issue new progress notifications if the printer is printing, or paused
         # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
@@ -316,26 +332,34 @@ class MobilerakerCompanion:
             return None
 
         self._logger.info(
-            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s',
+            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s, use ProgressNoti: %s',
             cur_snap.progress,
             cfg.snap.progress,
             cur_snap.progress - cfg.snap.progress,
             max(self.remote_config.increments, cfg.settings.progress_config),
             normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(
-                self.remote_config.increments, cfg.settings.progress_config))
+                self.remote_config.increments, cfg.settings.progress_config)),
+            use_progress_notification
         )
 
         # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
         if (cfg.snap.state in ["printing", "paused"]
+                    and not use_progress_notification
                     and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
                 ):
             return None
 
+        nid = generate_notifcation_id_from_uuid(cfg.machine_id, 1)
+        channel = f'{cfg.machine_id}-progressUpdates'
         title = translate_replace_placeholders(
             'print_progress_title', cfg, cur_snap, self.companion_config)
         body = translate_replace_placeholders(
             'print_progress_body', cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 1), f'{cfg.machine_id}-progressUpdates', title, body)
+
+        if use_progress_notification:
+            return ProgressNotificationContentDto(cur_snap.progress, nid, channel, title, body)
+        else:
+            return NotificationContentDto(nid, channel, title, body)
 
     def _live_activity_update(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[LiveActivityContentDto]:
         # If uuid is none or empty returm
@@ -448,12 +472,16 @@ class MobilerakerCompanion:
         try:
             last = cfg.snap
 
+            # starting from 2.6.10 we can use the progress notification for android. If not, use the text based one
+            use_progress_notification = cfg.is_android and cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0
+
+
             progress_update = None
             if printer_snap.print_state not in ['printing', 'paused']:
                 progress_update = 0
             elif (last.progress != printer_snap.progress
                   and printer_snap.progress is not None
-                  and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
+                  and (normalized_progress_interval_reached(last.progress, printer_snap.progress, self.remote_config.increments if use_progress_notification else max(self.remote_config.increments, cfg.settings.progress_config))
                        or printer_snap.progress < last.progress)):
                 progress_update = printer_snap.progress
 
