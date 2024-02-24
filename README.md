@@ -242,6 +242,8 @@ virtualenv: ~/mobileraker-env
 requirements: scripts/mobileraker-requirements.txt
 install_script: scripts/install.sh
 ```
+> [!IMPORTANT]
+> This section is applicable to a default Klipper installation. If you're using a K1 or SonicPad, you may need to modify the `virtualenv` path accordingly.
 
 # Custom Notifications
 
