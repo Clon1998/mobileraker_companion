@@ -31,7 +31,7 @@ def get_local_timezone() -> str:
     local_tz_offset = -time.timezone if (time.localtime().tm_isdst == 0) else -time.altzone
     local_tz = pytz.timezone(f'Etc/GMT{local_tz_offset//3600:+d}')
 
-    return local_tz.zone if local_tz is None else 'Etc/UTC'
+    return local_tz.zone if local_tz.zone is not None else 'Etc/UTC'
 
 class CompanionRemoteConfig:
 
