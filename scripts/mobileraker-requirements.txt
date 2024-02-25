@@ -2,4 +2,4 @@ coloredlogs==15.0.1
 requests==2.26.0
 websockets==10.1
 pillow
-dateutil
+python-dateutil
