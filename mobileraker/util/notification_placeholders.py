@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from typing import Optional
-import pytz
 from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.util.configs import CompanionLocalConfig

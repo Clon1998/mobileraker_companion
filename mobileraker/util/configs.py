@@ -3,10 +3,8 @@ import datetime
 import logging
 import os
 import pathlib
-import time
 from typing import Any, Dict, Optional, Union
-
-import pytz
+from dateutil import tz
 
 home_dir = os.path.expanduser("~/")
 companion_dir = pathlib.Path(__file__).parent.parent.parent.resolve()
@@ -24,14 +22,14 @@ def get_local_timezone() -> str:
     """
     Returns the local timezone.
 
-    Thanks to https://www.reddit.com/user/destinal/ for this snippet.
-
     return: The local timezone.
     """
-    local_tz_offset = -time.timezone if (time.localtime().tm_isdst == 0) else -time.altzone
-    local_tz = pytz.timezone(f'Etc/GMT{local_tz_offset//3600:+d}')
+    # Get the system's current local timezone
+    local_timezone = tz.tzlocal()
+    # Convert the timezone to a string representation
+    timezone_abbr = local_timezone.tzname(datetime.datetime.now())
 
-    return local_tz.zone if local_tz.zone is not None else 'Etc/UTC'
+    return timezone_abbr if timezone_abbr is not None else 'UTC'
 
 class CompanionRemoteConfig:
 
@@ -87,7 +85,9 @@ class CompanionLocalConfig:
             'general', 'language', fallback='en')
         self.timezone_str: str = self.config.get(
             'general', 'timezone', fallback=get_local_timezone())  # fallback to system timezone (Hopefully)
-        self.timezone: datetime.tzinfo = pytz.timezone(self.timezone_str if self.timezone_str is not None else "Greenwich")
+
+        parsed_tz = tz.gettz(self.timezone_str)
+        self.timezone: datetime.tzinfo = parsed_tz if parsed_tz is not None else tz.UTC
         self.eta_format: str = self.config.get(
             'general', 'eta_format', fallback='%d.%m.%Y, %H:%M:%S')
         self.include_snapshot: bool = self.config.getboolean(

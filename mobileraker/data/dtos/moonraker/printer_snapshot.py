@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 import math
-import pytz
+from dateutil import tz
 
 from mobileraker.data.dtos.moonraker.printer_objects import GCodeFile, GCodeMove, PrintStats, Toolhead, VirtualSDCard
 
@@ -173,7 +173,7 @@ class PrinterSnapshot:
     @property
     def eta_seconds_utc(self) -> Optional[int]:
         return int(self.eta.astimezone(
-            pytz.UTC).timestamp()) if self.eta else None
+            tz.UTC).timestamp()) if self.eta else None
         
 
     @property
