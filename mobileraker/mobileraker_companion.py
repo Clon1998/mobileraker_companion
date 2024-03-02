@@ -139,11 +139,16 @@ class MobilerakerCompanion:
                 self._logger.info('LiveActivity (%s):  %s - %s',
                                     live_activity_update.token, live_activity_update.progress, live_activity_update.eta)
 
+            filament_sensor_notifications = self._filament_sensor_notifications(cfg, snapshot)
+            if filament_sensor_notifications is not None:
+                self._logger.info('FilamentSensorNoti.size %i', len(filament_sensor_notifications))
+                notifications.extend(filament_sensor_notifications)
+
             self._logger.debug('Notifications for %s: %s',
                                 cfg.fcm_token, notifications)
 
-            self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s', len(
-                notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None)
+            self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s, FilamentSensor: %i', len(
+                notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None, len(filament_sensor_notifications) if filament_sensor_notifications is not None else 0)
             
             if notifications:
                 # Set a webcam img to all DTOs if available
@@ -212,17 +217,33 @@ class MobilerakerCompanion:
         # Progress evaluation
         last_progress = self._last_snapshot.progress
         cur_progress = snapshot.progress
+        if last_progress != cur_progress:
+            if last_progress is None or cur_progress is None:
+                self._logger.info('Progress is None. Evaluating!')
+                return True
 
-        if last_progress == cur_progress:
-            return False
+            if normalized_progress_interval_reached(last_progress, cur_progress, self.remote_config.increments):
+                self._logger.info('Progress reached interval. Evaluating!')
+                return True
+        
+        # Filament sensor evaluation 
+        
+        last_sensors = self._last_snapshot.filament_sensors
+        cur_sensors = snapshot.filament_sensors
 
-        if last_progress is None or cur_progress is None:
-            self._logger.info('Progress is None. Evaluating!')
-            return True
-
-        if normalized_progress_interval_reached(last_progress, cur_progress, self.remote_config.increments):
-            self._logger.info('Progress reached interval. Evaluating!')
-            return True
+        # check if any of the new sensors is enabled and 
+        for key, sensor in cur_sensors.items():
+            # do not skip disabled sensors, as they might have been enabled in the meantime
+            last_sensor = last_sensors.get(key)
+            if last_sensor is None:
+                self._logger.info('Initial filament sensor detected. Evaluating!')
+                return True
+            if last_sensor.filament_detected != sensor.filament_detected:
+                self._logger.info('Filament sensor triggered. Evaluating!')
+                return True
+            if last_sensor.enabled != sensor.enabled:
+                self._logger.info('Filament sensor enabled/disabled. Evaluating!')
+                return True
 
         # Yes I know I can return on the last if, but I want to log the reason why it triggered an evaluation
         return False
@@ -424,6 +445,54 @@ class MobilerakerCompanion:
 
         return self._construct_custom_notification(cfg, cur_snap, message)
 
+    def _filament_sensor_notifications(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[List[NotificationContentDto]]:
+
+        # Only issue sensor notifications if the printer is printing or paused
+        if cur_snap.print_state not in ["printing", "paused"]:
+            return None
+
+        # check if the printer has filament sensors
+        if len(cur_snap.filament_sensors) == 0:
+            return None
+
+        # check if new print state actually should issue a notification trough user configs
+        #TODO: Make this configurable
+        # if cur_snap.print_state not in cfg.settings.state_config:
+        #     return None
+
+        
+        # Sensors KEYS that triggered a notification
+        sensors_triggered: List[str] = []
+
+        # Check if any of the sensors is enabled and no filament was detected before
+        for key, sensor in cur_snap.filament_sensors.items():
+            # If the sensor is not enabled, skip it
+            if not sensor.enabled:
+                continue
+            
+            # If sensor detected no filament and no notification was issued before, add it to the list
+            if not sensor.filament_detected and key not in cfg.snap.filament_sensors:
+                sensors_triggered.append(key)
+
+        if len(sensors_triggered) == 0:
+            return None
+
+
+        # create a notification for each triggered sensor
+        notifications: List[NotificationContentDto] = []
+        for key in sensors_triggered:
+            sensor = cur_snap.filament_sensors[key] 
+            title = translate_replace_placeholders(
+            'filament_sensor_triggered_title', cfg, cur_snap, self.companion_config, {'$sensor': sensor.name})
+            
+            body = translate_replace_placeholders(
+            'filament_sensor_triggered_body', cfg, cur_snap, self.companion_config, {'$sensor': sensor.name})
+            notifications.append(NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 3), f'{cfg.machine_id}-filamentSensor', title, body))
+
+        return notifications
+
+
+
     def _construct_custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, message: str) -> Optional[NotificationContentDto]:
         split = message.split('|')
 
@@ -494,12 +563,16 @@ class MobilerakerCompanion:
                        or printer_snap.progress < last.progress_live_activity)):
                 progress_live_activity_update = printer_snap.progress
 
+            # get list of all filament that have no filament detected (Enabled and Disabled, if we only use enabled once, this might trigger a notification if the user enables a sensor and it detects no filament)
+            filament_sensors = [key for key, sensor in printer_snap.filament_sensors.items() if not sensor.filament_detected]
+            
             updated = last.copy_with(
                 state=printer_snap.print_state if last.state != printer_snap.print_state and not printer_snap.is_timelapse_pause else None,
                 progress=progress_update,
                 progress_live_activity=progress_live_activity_update,
                 m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
-                gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None
+                gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None,
+                filament_sensors=filament_sensors if last.filament_sensors != filament_sensors else None
             )
 
             if updated == last:

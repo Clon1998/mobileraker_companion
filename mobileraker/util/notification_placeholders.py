@@ -1,11 +1,24 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Dict, Optional
 from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.util.configs import CompanionLocalConfig
 
 
-def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig) -> str:
+def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig, additional_data: Dict[str, str]={}) -> str:
+    """
+    Replaces placeholders in the input string with corresponding values from the provided parameters.
+
+    Args:
+        input (str): The input string containing placeholders to be replaced.
+        cfg (DeviceNotificationEntry): The device notification entry configuration.
+        snap (PrinterSnapshot): The printer snapshot.
+        companion_config (CompanionLocalConfig): The companion local configuration.
+        additional_data (Dict[str, str], optional): Additional data to be used for placeholder replacement. Defaults to {}.
+
+    Returns:
+        str: The input string with placeholders replaced by their corresponding values.
+    """
     eta = snap.eta
     if eta is not None:
         eta = eta.astimezone(companion_config.timezone)
@@ -26,8 +39,10 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
         'max_layer': snap.max_layer,
     }
 
-
     for name, value in data.items():
+        input = input.replace(f"${name}", str(value) if value is not None else '')
+
+    for name, value in additional_data.items():
         input = input.replace(f"${name}", str(value) if value is not None else '')
 
     return input

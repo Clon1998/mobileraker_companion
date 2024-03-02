@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import uuid
+from typing import Tuple, Optional
 
 # Based on the implementation of Klipperscreen https://github.com/jordanruthe/KlipperScreen/blob/e9df355b3b8c33b63d5cbb9f7f2c75bd879597c5/ks_includes/functions.py#L83
 
@@ -92,3 +93,18 @@ def compare_version(a: str, b: str) -> int:
         if aVersions[i] < bVersions[i]:
             return -1
     return 0
+
+
+
+def to_klipper_object_identifier(string: str) -> Tuple[str, Optional[str]]:
+    """
+    Convert a string to a Klipper object identifier.
+
+    Args:
+        string (str): The input string.
+
+    Returns:
+        Tuple[str, Optional[str]]: The Klipper object identifier as a tuple of two strings.
+    """
+    parts = string.strip().split(None, 1)
+    return parts[0].lower(), parts[1].strip() if len(parts) > 1 else None

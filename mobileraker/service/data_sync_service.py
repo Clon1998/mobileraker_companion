@@ -4,23 +4,25 @@ import hashlib
 import logging
 from typing import Any, Callable, Dict, List, Optional
 from mobileraker.client.moonraker_client import MoonrakerClient
-from mobileraker.data.dtos.moonraker.printer_objects import DisplayStatus, GCodeFile, GCodeMove, PrintStats, ServerInfo, Toolhead, VirtualSDCard
+from mobileraker.data.dtos.moonraker.printer_objects import DisplayStatus, FilamentSensor, GCodeFile, GCodeMove, PrintStats, ServerInfo, Toolhead, VirtualSDCard
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
+from mobileraker.util.functions import to_klipper_object_identifier
 
 
 
 
 class DataSyncService:
-    _OBJECTS_TO_SUBSCRIBE =  {
-        "objects": {
-            "print_stats": None,
-            "display_status": None,
-            "virtual_sdcard": None,
-            "toolhead": None,
-            "gcode_move": None,
-            "gcode_macro TIMELAPSE_TAKE_FRAME": None,
-        }
-    }
+    # Static list to define the objects to subscribe for updates if they are available.
+    _OBJECTS_TO_SUBSCRIBE = [ 
+        "print_stats",
+        "display_status",
+        "virtual_sdcard",
+        "toolhead",
+        "gcode_move",
+        "gcode_macro TIMELAPSE_TAKE_FRAME",
+        "filament_switch_sensor",
+        "filament_motion_sensor",
+    ]
 
     '''
     This service is responsible for keeping track of the latest printer data and then
@@ -48,6 +50,7 @@ class DataSyncService:
         self._loop: AbstractEventLoop = loop
         self._logger: logging.Logger = logging.getLogger(f'mobileraker.{printer_name}.sync')
         self._queried_for_session: bool = False
+        self._objects: Dict[str, Any] = {}
         self.klippy_ready: bool = False
         self.server_info: ServerInfo = ServerInfo()
         self.print_stats: PrintStats = PrintStats()
@@ -58,7 +61,9 @@ class DataSyncService:
         self.current_file: Optional[GCodeFile] = None
         self.gcode_response: Optional[str] = None
         self.timelapse_pause: Optional[bool] = None
+        self.filament_sensors: Dict[str, FilamentSensor] = {}
         self.resync_retries: int = resync_retries
+        
 
         self._snapshot_listeners: List[Callable[[PrinterSnapshot], None]] = []
 
@@ -92,21 +97,33 @@ class DataSyncService:
         '''
         self._logger.debug("Received status update for %s", status_objects)
         fetchMeta = False
-        for key, object_data in status_objects.items():
-            if key == 'print_stats':
+        for rawObjectKey, object_data in status_objects.items():
+            object_identifier, object_name = to_klipper_object_identifier(rawObjectKey)
+
+
+            if object_identifier == 'print_stats':
                 self.print_stats = self.print_stats.updateWith(object_data)
                 fetchMeta = True
-            elif key == 'display_status':
+            elif object_identifier == 'display_status':
                 self.display_status = self.display_status.updateWith(
                     object_data)
-            elif key == 'virtual_sdcard':
+            elif object_identifier == 'virtual_sdcard':
                 self.virtual_sdcard = self.virtual_sdcard.updateWith(
                     object_data)
-            elif key == 'toolhead':
+            elif object_identifier == 'toolhead':
                 self.toolhead = self.toolhead.updateWith(object_data)
-            elif key == 'gcode_move':
+            elif object_identifier == 'gcode_move':
                 self.gcode_move = self.gcode_move.updateWith(object_data)
-            elif key == 'gcode_macro TIMELAPSE_TAKE_FRAME':
+            elif object_identifier == 'filament_switch_sensor' or object_identifier == 'filament_motion_sensor':
+                if object_name is None:
+                    self._logger.warning("Received filament sensor object without name. Skipping...")
+                    continue
+                
+                #check if the sensor is already in the list, if not create a default one and call updateWith
+                sensor = self.filament_sensors[object_name] if object_name in self.filament_sensors else FilamentSensor(name= object_name)
+                self.filament_sensors[object_name] = sensor.updateWith(object_data)
+
+            elif rawObjectKey == 'gcode_macro TIMELAPSE_TAKE_FRAME':
                 # Using the self.timelapse_pause as fallback is required here since the object might be missing. In that case we want to keep the current state.
                 self.timelapse_pause = object_data.get('is_paused', self.timelapse_pause)
                 self._logger.debug("Timelapse is paused: %s", self.timelapse_pause)
@@ -197,7 +214,26 @@ class DataSyncService:
         '''
         try:
             self._logger.info("Syncing printer Objects")
-            response, k_err = await self._jrpc.send_and_receive_method("printer.objects.query", self._OBJECTS_TO_SUBSCRIBE)
+
+            # We need to get all subscribable objects from the printer, as we might not have all of them yet.
+
+            response, k_err = await self._jrpc.send_and_receive_method("printer.objects.list")
+
+            if k_err:
+                self._logger.warning("Could not sync printer data. Moonraker returned error while fetching objects list: %s", k_err)
+                return
+
+            object_list: List[str] = response["result"]["objects"]
+
+            self._objects = {}
+            for obj in object_list:
+                object_identifier, _ = to_klipper_object_identifier(obj)
+                if object_identifier in self._OBJECTS_TO_SUBSCRIBE or obj in self._OBJECTS_TO_SUBSCRIBE:
+                    self._objects[obj] = None
+
+            self._logger.info("Subscribing to printer Objects: %s", self._objects.keys())
+
+            response, k_err = await self._jrpc.send_and_receive_method("printer.objects.query", {"objects": self._objects})
             if k_err:
                 self._logger.warning("Could not sync printer data. Moonraker returned error %s", k_err)
                 return
@@ -228,7 +264,7 @@ class DataSyncService:
             None
         '''
         self._logger.info("Subscribing to printer Objects")
-        await self._jrpc.send_method("printer.objects.subscribe", None, self._OBJECTS_TO_SUBSCRIBE)
+        await self._jrpc.send_method("printer.objects.subscribe", None, {"objects": self._objects})
         self._logger.info("Subscribed to printer Objects")
 
     def _notify_listeners(self):
@@ -296,6 +332,10 @@ class DataSyncService:
             self.gcode_move: GCodeMove = GCodeMove()
             self.display_status: DisplayStatus = DisplayStatus()
             self.virtual_sdcard: VirtualSDCard = VirtualSDCard()
+            self.current_file: Optional[GCodeFile] = None
+            self.gcode_response: Optional[str] = None
+            self.timelapse_pause: Optional[bool] = None
+            self.filament_sensors: Dict[str, FilamentSensor] = {}
 
             await self._resync()
             # We only subscribe for updates if Klippy is ready
@@ -333,6 +373,7 @@ class DataSyncService:
         snapshot.gcode_response_hash = hashlib.sha256(snapshot.gcode_response.encode(
             "utf-8")).hexdigest() if snapshot.gcode_response else ''
         snapshot.timelapse_pause = self.timelapse_pause
+        snapshot.filament_sensors = dict(self.filament_sensors)
 
         self._logger.debug('Took a PrinterSnapshot: %s', snapshot)
         return snapshot

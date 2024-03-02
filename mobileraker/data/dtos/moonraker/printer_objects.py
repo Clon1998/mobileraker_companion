@@ -265,3 +265,27 @@ class GCodeMove:
         if 'gcode_position' in json_data:
             n.gcode_position = json_data['gcode_position']
         return n
+    
+class FilamentSensor:
+    def __init__(self,
+                 name: str,
+                 enabled: bool = False,
+                 filament_detected: bool = True,
+                 ) -> None:
+        self.name: str = name
+        self.enabled: bool = enabled
+        self.filament_detected: bool = filament_detected
+
+    def updateWith(self, json_data: dict) -> 'FilamentSensor':
+        n = deepcopy(self)
+        if 'enabled' in json_data:
+            n.enabled = json_data['enabled']
+        if 'filament_detected' in json_data:
+            n.filament_detected = json_data['filament_detected']
+        return n
+    
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )

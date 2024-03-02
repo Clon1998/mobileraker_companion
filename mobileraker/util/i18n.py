@@ -21,7 +21,9 @@ _mobileraker_en: Dict[str, str] = {
     'state_completed_body': 'Finished printing: "$file"',
     'state_error_body': 'Error while printing file: "$file"',
     'state_standby_body': 'Printer is in Standby',
-    'm117_custom_title': 'User Notification'
+    'm117_custom_title': 'User Notification',
+    "filament_sensor_triggered_title": "Filament Sensor Triggered",
+    "filament_sensor_triggered_body": "$$sensor triggered on printer $printer_name",
 }
 
 mobileraker_fr: Dict[str, str] = {
@@ -45,7 +47,9 @@ _mobileraker_de: Dict[str, str] = {
     'state_completed_body': 'Druck abgeschlossen: "$file"',
     'state_error_body': 'Fehler beim Drucken der Datei: "$file"',
     'state_standby_body': 'Drucker im Standby',
-    'm117_custom_title': 'Nutzer-Benachrichtigung'
+    'm117_custom_title': 'Nutzer-Benachrichtigung',
+    "filament_sensor_triggered_title": "Filament Sensor ausgelöst",
+    "filament_sensor_triggered_body": "$$sensor auf Drucker $printer_name ausgelöst",
 }
 
 _mobileraker_ptbr: Dict[str, str] = {
@@ -128,8 +132,8 @@ def translate(country_code: str, str_key: str) -> str:
     return translation
 
 
-def translate_replace_placeholders(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig) -> str:
+def translate_replace_placeholders(str_key: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig, additional_data: Dict[str, str]={}) -> str:
     # For now users can only globally define the notification language!
     translation = translate(companion_config.language, str_key)
     # translation = translate(cfg.language, str_key)
-    return replace_placeholders(translation, cfg, snap, companion_config)
+    return replace_placeholders(translation, cfg, snap, companion_config, additional_data)

@@ -140,12 +140,14 @@ class NotificationSnap:
                  state: str = '',
                  m117: str = '',
                  gcode_response: Optional[str] = None,
+                 filament_sensors: List[str] = [],
                  ):
         self.progress: int = progress
         self.progress_live_activity: int = progress_live_activity
         self.state: str = state
         self.m117: str = m117
         self.gcode_response: Optional[str] = gcode_response
+        self.filament_sensors: List[str] = filament_sensors
 
     @staticmethod
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSnap':
@@ -158,6 +160,7 @@ class NotificationSnap:
         cfg.state = json['state'] if 'state' in json else 'standby'
         cfg.m117 = json['m117'] if 'm117' in json else ''
         cfg.gcode_response = json['gcode_response'] if 'gcode_response' in json else None
+        cfg.filament_sensors = json['filament_sensors'] if 'filament_sensors' in json else []
 
         return cfg
 
@@ -166,7 +169,8 @@ class NotificationSnap:
             "progress": round(self.progress / 100, 2),
             "progress_live_activity": round(self.progress_live_activity / 100, 2),
             "state": self.state,
-            "m117": self.m117
+            "m117": self.m117,
+            "filament_sensors": self.filament_sensors,
         }
 
         if self.gcode_response is not None:
@@ -180,6 +184,7 @@ class NotificationSnap:
                   state: Optional[str] = None,
                   m117: Optional[str] = None,
                   gcode_response: Optional[str] = None,
+                  filament_sensors: Optional[List[str]] = None,
                   ) -> 'NotificationSnap':
         """
         Create a new instance of NotificationSnap with updated attributes.
@@ -199,7 +204,8 @@ class NotificationSnap:
             progress_live_activity=self.progress_live_activity if progress_live_activity is None else progress_live_activity,
             state=self.state if state is None else state,
             m117=self.m117 if m117 is None else m117,
-            gcode_response=self.gcode_response if gcode_response is None else gcode_response
+            gcode_response=self.gcode_response if gcode_response is None else gcode_response,
+            filament_sensors=self.filament_sensors if filament_sensors is None else filament_sensors,
         )
 
         return copied_snap
@@ -219,7 +225,8 @@ class NotificationSnap:
             self.progress_live_activity == other.progress_live_activity and
             self.state == other.state and
             self.m117 == other.m117 and
-            self.gcode_response == other.gcode_response
+            self.gcode_response == other.gcode_response and
+            self.filament_sensors == other.filament_sensors
         )
 
 

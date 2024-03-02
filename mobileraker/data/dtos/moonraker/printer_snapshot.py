@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Dict, Optional
 import math
 from dateutil import tz
 
-from mobileraker.data.dtos.moonraker.printer_objects import GCodeFile, GCodeMove, PrintStats, Toolhead, VirtualSDCard
+from mobileraker.data.dtos.moonraker.printer_objects import FilamentSensor, GCodeFile, GCodeMove, PrintStats, Toolhead, VirtualSDCard
 
 
 class PrinterSnapshot:
@@ -25,12 +25,11 @@ class PrinterSnapshot:
         self.gcode_response: Optional[str] = None
         self.gcode_response_hash: Optional[str] = None
         self.timelapse_pause: Optional[bool] = None
+        self.filament_sensors: Dict[str, FilamentSensor] = {}
 
     def __str__(self):
-        return '%s(%s)' % (
-            type(self).__name__,
-            ', '.join('%s=%s' % item for item in vars(self).items())
-        )
+        filament_sensors_str = ', '.join(str(v) for v in self.filament_sensors.values())
+        return f"PrinterSnapshot(klippy_ready={self.klippy_ready}, print_state={self.print_state}, m117={self.m117}, m117_hash={self.m117_hash}, virtual_sdcard={self.virtual_sdcard}, print_stats={self.print_stats}, current_file={self.current_file}, toolhead={self.toolhead}, gcode_move={self.gcode_move}, gcode_response={self.gcode_response}, gcode_response_hash={self.gcode_response_hash}, timelapse_pause={self.timelapse_pause}, filament_sensors={filament_sensors_str})"
 
     def __eq__(self, other):
         if not isinstance(other, PrinterSnapshot):
@@ -45,6 +44,7 @@ class PrinterSnapshot:
             and self.current_file == other.current_file
             and self.gcode_response == other.gcode_response
             and self.timelapse_pause == other.timelapse_pause
+            and self.filament_sensors == other.filament_sensors
         )
 
     @property
