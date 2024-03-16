@@ -76,6 +76,7 @@ def main() -> None:
                 printer_name=printer_name,
                 loop=event_loop,
                 companion_config=local_config,
+                exclude_sensors=p_config['excluded_filament_sensors'],
             )
             event_loop.create_task(client.start())
         event_loop.run_forever()

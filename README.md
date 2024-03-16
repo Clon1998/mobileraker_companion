@@ -190,6 +190,14 @@ snapshot_rotation: 0
 # The rotation applied to the image. Valid values : 0, 90, 180, 270
 # Default: 0
 # Optional
+ignore_filament_sensors:
+# Comma separated list of filament sensors to ignore, ignored filament sensors do not trigger 
+# a notification if they are triggered. This is useful if you have a filament sensor that is used
+# in a MMU setup like ERCF.
+# IMPORTANT, do not include the sensor type. E.g. if your sensor is configured
+# like: [filament_switch_sensor printhead_sensor] add `printhead_sensor` to the list.
+# Default: empty
+# Optional
 
 ```
 > [!IMPORTANT]
@@ -219,6 +227,7 @@ moonraker_uri: ws://ratrig.home:7125/websocket
 # Default value: ws://127.0.0.1:7125/websocket
 moonraker_api_key: False
 # Moonraker API key if force_logins is active!
+ignore_filament_sensors: printhead_sensor, sensor_name2
 ```
 
 > [!NOTE]

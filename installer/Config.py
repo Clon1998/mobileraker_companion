@@ -27,6 +27,7 @@ class Config:
         "printer.moonraker_api_key": ["Moonraker API key if force_logins or trusted clients is active!", "Default value: False", "Optional"],
         "printer.snapshot_uri": ["!! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!", "The ABSOLUT url to the webcam, the companion should make a screenshot of.", "Example MJPEG SnapShot url: http://192.168.178.135/webcam/?action=snapshot", "Optional"],
         "printer.snapshot_rotation": ["!! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!", "The rotation of the snapshot in degrees", "Default value: 0", "Valud Values: 0,90,180,270", "Optional"],
+        "printer.ignore_filament_sensors": ["Comma separated list of filament sensors to ignore, ignored filament sensors do not trigger", "a notification if they are triggered. This is useful if you have a filament sensor that is used", "in a MMU setup like ERCF.","IMPORTANT, do not include the sensor type. E.g. if your sensor is configured", "like: [filament_switch_sensor printhead_sensor] add `printhead_sensor` to the list.", "Default: empty", "Optional"],
     }
 
 
@@ -283,3 +284,4 @@ class Config:
         else:
             config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
         config.set(sec, "snapshot_rotation", "0")
+        config.set(sec, "ignore_filament_sensors", "")

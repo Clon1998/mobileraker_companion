@@ -36,7 +36,8 @@ class MobilerakerCompanion:
             snapshot_client: SnapshotClient,
             printer_name: str,
             loop: AbstractEventLoop,
-            companion_config: CompanionLocalConfig
+            companion_config: CompanionLocalConfig,
+            exclude_sensors: List[str] = []
     ) -> None:
         super().__init__()
         self._jrpc: MoonrakerClient = jrpc
@@ -46,6 +47,7 @@ class MobilerakerCompanion:
         self.printer_name: str = printer_name
         self.loop: AbstractEventLoop = loop
         self.companion_config: CompanionLocalConfig = companion_config
+        self.exclude_sensors: List[str] = exclude_sensors
         self.last_request: Optional[DeviceRequestDto] = None
         # TODO: Fetch this from a remote server for easier configuration :)
         self.remote_config = CompanionRemoteConfig()
@@ -54,6 +56,9 @@ class MobilerakerCompanion:
         self._last_snapshot: Optional[PrinterSnapshot] = None
         self._last_apns_message: Optional[int] = None
         self._evaulate_noti_lock: Lock = Lock()
+
+        self._logger.info('MobilerakerCompanion client created for %s, it will ignore the following sensors: %s',
+                          printer_name, exclude_sensors)
 
         self._jrpc.register_connection_listener(
             lambda d: self.loop.create_task(self._update_meta_data()) if d else None)
@@ -233,6 +238,10 @@ class MobilerakerCompanion:
 
         # check if any of the new sensors is enabled and 
         for key, sensor in cur_sensors.items():
+            # Skip sensors the user wants to ignore
+            if key in self.exclude_sensors:
+                continue
+
             # do not skip disabled sensors, as they might have been enabled in the meantime
             last_sensor = last_sensors.get(key)
             if last_sensor is None:
@@ -466,6 +475,10 @@ class MobilerakerCompanion:
 
         # Check if any of the sensors is enabled and no filament was detected before
         for key, sensor in cur_snap.filament_sensors.items():
+            # Skip sensors the user wants to ignore
+            if key in self.exclude_sensors:
+                continue
+
             # If the sensor is not enabled, skip it
             if not sensor.enabled:
                 continue
@@ -564,7 +577,7 @@ class MobilerakerCompanion:
                 progress_live_activity_update = printer_snap.progress
 
             # get list of all filament that have no filament detected (Enabled and Disabled, if we only use enabled once, this might trigger a notification if the user enables a sensor and it detects no filament)
-            filament_sensors = [key for key, sensor in printer_snap.filament_sensors.items() if not sensor.filament_detected]
+            filament_sensors = [key for key, sensor in printer_snap.filament_sensors.items() if not sensor.filament_detected and not key in self.exclude_sensors]
             
             updated = last.copy_with(
                 state=printer_snap.print_state if last.state != printer_snap.print_state and not printer_snap.is_timelapse_pause else None,

@@ -3,7 +3,7 @@ import datetime
 import logging
 import os
 import pathlib
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from dateutil import tz
 
 home_dir = os.path.expanduser("~/")
@@ -47,6 +47,7 @@ class CompanionLocalConfig:
         super().__init__()
         self.config: configparser.ConfigParser = configparser.ConfigParser()
         self.printers: Dict[str, Dict[str, Any]] = {}
+        self.ignore_sensors: List[str] = []
 
         config_file_path = self.get_config_file_location(passed_config_file)
         if config_file_path:
@@ -69,7 +70,8 @@ class CompanionLocalConfig:
                 "moonraker_uri": self.config.get(printer, "moonraker_uri", fallback="ws://127.0.0.1:7125/websocket"),
                 "moonraker_api_key": None if api_key == 'False' or not api_key else api_key,
                 "snapshot_uri": self.config.get(printer, "snapshot_uri", fallback="http://127.0.0.1/webcam/?action=snapshot"),
-                "snapshot_rotation": rotation
+                "snapshot_rotation": rotation,
+                "excluded_filament_sensors":  [sensor.strip() for sensor in self.config.get(printer, "ignore_filament_sensors", fallback="").split(",") if sensor.strip() != ""]
             }
 
         if len(self.printers) <= 0:
@@ -77,7 +79,8 @@ class CompanionLocalConfig:
                 "moonraker_uri": "ws://127.0.0.1:7125/websocket",
                 "moonraker_api_key": None,
                 "snapshot_uri": "http://127.0.0.1/webcam/?action=snapshot",
-                "snapshot_rotation": 0
+                "snapshot_rotation": 0,
+                "excluded_filament_sensors": []
             }
         logging.info("Read %i printer config sections" % len(self.printers))
 
