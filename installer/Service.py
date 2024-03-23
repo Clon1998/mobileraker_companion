@@ -247,13 +247,13 @@ exit $?
                 asvc = file.read()
             if not re.search(r'^\s*mobileraker\s*$', asvc, re.MULTILINE):
                 with open(asvc_path, "a") as file:
-                    file.write("mobileraker\n")
+                    file.write("\nmobileraker")
                 Logger.Info("Added service to moonraker asv file.")
             else:
                 Logger.Info("Service already in moonraker asv file.")
         else:
             with open(asvc_path, "w") as file:
-                file.write("mobileraker\n")
+                file.write("mobileraker")
             Logger.Warn("Moonraker asv file did not exist, created it and added service to it.")
             Logger.Warn("By default, moonraker should already provide this file, so this is unexpected.")
 
