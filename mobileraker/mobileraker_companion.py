@@ -158,8 +158,8 @@ class MobilerakerCompanion:
             self._logger.debug('Notifications for %s: %s',
                                 cfg.fcm_token, notifications)
 
-            self._logger.info('%i Notifications for machineID: %s: state: %s, proggress: %s, M117 %s, GcodeResponse: %s, LiveActivity: %s, FilamentSensor: %i', len(
-                notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None, len(filament_sensor_notifications) if filament_sensor_notifications is not None else 0)
+            self._logger.info('%i Notifications for machineID: %s: state: %s, proggress(text): %s, M117 %s, GcodeResponse: %s, LiveActivity: %s, FilamentSensor: %i, progressbar(android): %s', len(
+                notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None, len(filament_sensor_notifications) if filament_sensor_notifications is not None else 0, progressbar_noti is not None)
             
             if notifications:
                 # Set a webcam img to all DTOs if available
