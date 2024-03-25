@@ -121,8 +121,14 @@ class MobilerakerCompanion:
             progress_noti = self._progress_notification(cfg, snapshot)
             if progress_noti is not None:
                 notifications.append(progress_noti)
-                self._logger.info('%s: %s - %s',
-                                    type(progress_noti).__name__, progress_noti.title, progress_noti.body)
+                self._logger.info('ProgressTextNoti: %s - %s',
+                                    progress_noti.title, progress_noti.body)
+                
+            progressbar_noti = self._progressbar_notification(cfg, snapshot)
+            if progressbar_noti is not None:
+                notifications.append(progressbar_noti)
+                self._logger.info('ProgressBarNoti: %s - %s',
+                                    progressbar_noti.title, progressbar_noti.body)
 
             m117_noti = self._custom_notification(cfg, snapshot, True)
             if m117_noti is not None:
@@ -228,7 +234,7 @@ class MobilerakerCompanion:
                 return True
 
             if normalized_progress_interval_reached(last_progress, cur_progress, self.remote_config.increments):
-                self._logger.info('Progress reached interval. Evaluating!')
+                self._logger.info('Progress reached minimum interval. Evaluating!')
                 return True
         
         # Filament sensor evaluation 
@@ -352,29 +358,23 @@ class MobilerakerCompanion:
         if cfg.settings.progress_config == -1:
             return None
         
-        # starting from 2.6.10 we can use the progress notification for android. If not, use the text based one
-        use_progress_notification = cfg.is_android and cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0
-
-
         # only issue new progress notifications if the printer is printing, or paused
         # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
         if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
             return None
 
         self._logger.info(
-            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s, use ProgressNoti: %s',
+            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s',
             cur_snap.progress,
             cfg.snap.progress,
             cur_snap.progress - cfg.snap.progress,
             max(self.remote_config.increments, cfg.settings.progress_config),
             normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(
-                self.remote_config.increments, cfg.settings.progress_config)),
-            use_progress_notification
+                self.remote_config.increments, cfg.settings.progress_config))
         )
 
         # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
         if (cfg.snap.state in ["printing", "paused"]
-                    and not use_progress_notification
                     and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
                 ):
             return None
@@ -386,11 +386,62 @@ class MobilerakerCompanion:
         body = translate_replace_placeholders(
             'print_progress_body', cfg, cur_snap, self.companion_config)
 
-        if use_progress_notification:
-            return ProgressNotificationContentDto(cur_snap.progress, nid, channel, title, body)
-        else:
-            return NotificationContentDto(nid, channel, title, body)
+        return NotificationContentDto(nid, channel, title, body)
+        
 
+    def _progressbar_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[Union[NotificationContentDto, ProgressNotificationContentDto]]:
+        """
+        Generates a progressbar notification (Android) based on the given configuration and current printer snapshot.
+
+        Args:
+            cfg (DeviceNotificationEntry): The device notification configuration.
+            cur_snap (PrinterSnapshot): The current printer snapshot.
+
+        Returns:
+            Optional[ContentDto]: The generated progress notification content, or None if no notification should be issued.
+        """
+        # If progressbar notifications are disabled, skip it!
+        if not cfg.settings.android_progressbar:
+            return None
+        
+        # If device is not an android device, skip it!
+        if not cfg.is_android:
+            return None
+
+        # If version is below 2.6.10, skip it!
+        if cfg.version is None or compare_version(cfg.version, "2.6.10") < 0:
+            return None
+
+        # only issue new progress notifications if the printer is printing, or paused
+        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
+        if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
+            return None
+
+        self._logger.info(
+            'PBarNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s',
+            cur_snap.progress,
+            cfg.snap.progress_progressbar,
+            cur_snap.progress - cfg.snap.progress_progressbar,
+            max(self.remote_config.increments, cfg.settings.progress_config),
+            normalized_progress_interval_reached(cfg.snap.progress_progressbar, cur_snap.progress, max(
+                self.remote_config.increments, cfg.settings.progress_config)),
+        )
+
+        # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
+        if (cfg.snap.state in ["printing", "paused"]
+                    and not normalized_progress_interval_reached(cfg.snap.progress_progressbar, cur_snap.progress, self.remote_config.increments)
+                ):
+            return None
+
+        nid = generate_notifcation_id_from_uuid(cfg.machine_id, 4)
+        channel = f'{cfg.machine_id}-progressUpdates'
+        title = translate_replace_placeholders(
+            'print_progress_title', cfg, cur_snap, self.companion_config)
+        body = translate_replace_placeholders(
+            'print_progress_body', cfg, cur_snap, self.companion_config)
+
+        return ProgressNotificationContentDto(cur_snap.progress, nid, channel, title, body)
+        
     def _live_activity_update(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[LiveActivityContentDto]:
         # If uuid is none or empty returm
         if cfg.apns is None or not cfg.apns.liveActivity:
@@ -554,16 +605,12 @@ class MobilerakerCompanion:
         try:
             last = cfg.snap
 
-            # starting from 2.6.10 we can use the progress notification for android. If not, use the text based one
-            use_progress_notification = cfg.is_android and cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0
-
-
             progress_update = None
             if printer_snap.print_state not in ['printing', 'paused']:
                 progress_update = 0
             elif (last.progress != printer_snap.progress
                   and printer_snap.progress is not None
-                  and (normalized_progress_interval_reached(last.progress, printer_snap.progress, self.remote_config.increments if use_progress_notification else max(self.remote_config.increments, cfg.settings.progress_config))
+                  and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
                        or printer_snap.progress < last.progress)):
                 progress_update = printer_snap.progress
 
@@ -576,6 +623,15 @@ class MobilerakerCompanion:
                        or printer_snap.progress < last.progress_live_activity)):
                 progress_live_activity_update = printer_snap.progress
 
+            progressbar_update = None
+            if printer_snap.print_state not in ['printing', 'paused']:
+                progressbar_update = 0
+            elif (last.progress_progressbar != printer_snap.progress
+                  and printer_snap.progress is not None
+                  and (normalized_progress_interval_reached(last.progress_progressbar, printer_snap.progress, self.remote_config.increments)
+                       or printer_snap.progress < last.progress_progressbar)):
+                progressbar_update = printer_snap.progress
+
             # get list of all filament that have no filament detected (Enabled and Disabled, if we only use enabled once, this might trigger a notification if the user enables a sensor and it detects no filament)
             filament_sensors = [key for key, sensor in printer_snap.filament_sensors.items() if not sensor.filament_detected and not key in self.exclude_sensors]
             
@@ -583,6 +639,7 @@ class MobilerakerCompanion:
                 state=printer_snap.print_state if last.state != printer_snap.print_state and not printer_snap.is_timelapse_pause else None,
                 progress=progress_update,
                 progress_live_activity=progress_live_activity_update,
+                progress_progressbar=progressbar_update,
                 m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
                 gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None,
                 filament_sensors=filament_sensors if last.filament_sensors != filament_sensors else None
