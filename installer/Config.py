@@ -18,7 +18,7 @@ class Config:
     UPDATE_MANAGER_FILE_NAME = "mobileraker-moonraker.conf"
 
     CONFIG_HELPERS = {
-        "general.language": ["one of the supported languages defined in i18n.py#languages (de,en,...)", "Default: en"],
+        "general.language": ["one of the supported languages defined in i18n.py#languages (de,en,...)", "!!! For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!","Default: en"],
         "general.timezone": ["The system's timezone e.g. Europe/Berlin for Berlin time or US/Central.", "For more values see https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568", "Default: Tries to use system timezone", "Optional"],
         "general.eta_format": ["Format used for eta and adaptive_eta placeholder variables", "For available options see https://strftime.org/", "Note that you will have to escape the % char by using a 2nd one e.g.: %d/%m/%Y -> %%d/%%m/%%Y", "Default: %%d.%%m.%%Y, %%H:%%M:%%S", "Optional"],
         "general.include_snapshot": ["!! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!", "Include a snapshot of the webcam in any print status/progress update notifications", "Default: True", "Optional"],

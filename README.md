@@ -151,6 +151,7 @@ By default, you don't need to create a config file. However, if you want to use 
 [general]
 language: en 
 # one of the supported languages defined in i18n.py#languages (de,en,...)
+# !!! For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!
 # Default: en
 timezone: Europe/Berlin 
 # correct timezone e.g. Europe/Berlin for Berlin time or US/Central. 
