@@ -245,7 +245,7 @@ install_or_update_python_env()
     # Finally, ensure our plugin requirements are installed and updated.
     log_info "Installing or updating required python libs..."
     if [ "$IS_K1_OS" -eq 1 ]; then
-        TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
+        TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
     else
         TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
     fi
