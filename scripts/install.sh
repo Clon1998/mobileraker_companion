@@ -185,7 +185,7 @@ install_or_update_system_dependencies()
         # the user might install opkg via the 3rd party moonraker installer script.
         # But in general, PY will already be installed, so there's no need to try.
         # On the K1, the only we thing we ensure is that virtualenv is installed via pip.
-        pip3 install virtualenv
+        pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir virtualenv
     elif [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
         # The sonic pad always has opkg installed, so we can make sure these packages are installed.
         opkg install ${SONIC_PAD_DEP_LIST}
@@ -233,14 +233,22 @@ install_or_update_python_env()
 
     # Update pip if needed - we added a note because this takes a while on the sonic pad.
     log_info "Updating PIP if needed... (this can take a few seconds or so)"
-    "${ENV_DIR}"/bin/python -m pip install --upgrade pip
+    if [ "$IS_K1_OS" -eq 1 ]; then
+        "${ENV_DIR}"/bin/python -m pip install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir --upgrade pip
+    else
+        "${ENV_DIR}"/bin/python -m pip install --upgrade pip
+    fi
 
     # Set the cache directory based on the OS
     CACHE_DIR="${ENV_DIR}/cache"
 
     # Finally, ensure our plugin requirements are installed and updated.
     log_info "Installing or updating required python libs..."
-    TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
+    if [ "$IS_K1_OS" -eq 1 ]; then
+        TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
+    else
+        TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
+    fi
     log_info "Python libs installed."
 }
 
