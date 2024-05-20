@@ -58,6 +58,7 @@ PKGLIST="python3 python3-pip virtualenv curl"
 # We don't override the default name, since that's used by the Moonraker installer
 # Note that we DON'T want to use the same name as above (not even in this comment) because some parsers might find it.
 SONIC_PAD_DEP_LIST="python3 python3-pip"
+CREALITY_DEP_LIST="python3 python3-pillow python3-pip"
 
 
 #
@@ -166,7 +167,11 @@ ensure_py_venv()
     mkdir -p "${ENV_DIR}"
     if [ "$IS_K1_OS" -eq 1 ]; then
         # The K1 requires we setup the virtualenv like this.
-        python3 /usr/lib/python3.8/site-packages/virtualenv.py -p /usr/bin/python3 --system-site-packages "${ENV_DIR}"
+        if [[ -f /opt/bin/python3 ]]; then
+            virtualenv -p /opt/bin/python3 --system-site-packages "${ENV_DIR}"
+        else
+            python3 /usr/lib/python3.8/site-packages/virtualenv.py -p /usr/bin/python3 --system-site-packages "${ENV_DIR}"
+        fi
     else
         # Everything else can use this more modern style command.
         virtualenv -p /usr/bin/python3 --system-site-packages "${ENV_DIR}"
@@ -185,9 +190,14 @@ install_or_update_system_dependencies()
         # the user might install opkg via the 3rd party moonraker installer script.
         # But in general, PY will already be installed, so there's no need to try.
         # On the K1, the only we thing we ensure is that virtualenv is installed via pip.
+        if [[ -f /opt/bin/opkg ]]; then
+            opkg update || true
+            opkg install ${CREALITY_DEP_LIST}
+        fi
         pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir virtualenv
     elif [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
         # The sonic pad always has opkg installed, so we can make sure these packages are installed.
+        opkg update || true
         opkg install ${SONIC_PAD_DEP_LIST}
         pip3 install virtualenv
     else
