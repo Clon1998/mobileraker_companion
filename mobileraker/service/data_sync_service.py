@@ -309,6 +309,12 @@ class DataSyncService:
             meta,  k_err = await self._jrpc.send_and_receive_method('server.files.metadata', {'filename': file_name})
             if k_err:
                 self._logger.warning("Could not fetch metadata for %s. Moonraker returned error %s", file_name, k_err)
+
+                # If just no metadata is available, we return a GCodeFile instance with empty metadata, this prevents the service from fetching the metadata again.
+                if ('Metadata not availabe for' in k_err):
+                    self._logger.warning("No metadata available for %s, returning empty GCodeFile instance", file_name)
+                    return GCodeFile(filename=file_name)
+                
                 return None
             self._logger.debug("Metadata for %s: %s", file_name, meta)
             return GCodeFile.from_json(meta['result'])

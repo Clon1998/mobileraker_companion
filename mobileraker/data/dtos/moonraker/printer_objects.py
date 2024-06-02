@@ -123,8 +123,8 @@ class GCodeFile:
     def __init__(
         self,
         filename: str,
-        modified: float,
-        size: int,
+        modified: Optional[float] = None,
+        size: Optional[int] = None,
         print_start_time: Optional[float] = None,
         job_id: Optional[str] = None,
         slicer: Optional[str] = None,
@@ -176,7 +176,10 @@ class GCodeFile:
         return False
 
     def __str__(self):
-        return f"Filename: {self.filename}, Modified: {self.modified}, Size: {self.size}"
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
 
     @classmethod
     def from_json(cls, data_dict: Dict[str, Any]) -> 'GCodeFile':
