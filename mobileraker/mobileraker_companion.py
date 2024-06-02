@@ -455,9 +455,13 @@ class MobilerakerCompanion:
             'LiveActivityUpdate preChecks passed'
         )
 
+
+        # Calculate the eta delta based on the estimated time of the current file or 15 minutes (whichever is higher)
+        eta_delta = max(15, cur_snap.eta_window) if cur_snap.eta_window is not None else 15
+
         etaUpdate = self._last_snapshot is not None and \
                     self._last_snapshot.eta is not None and cur_snap.eta is not None and \
-                    abs((self._last_snapshot.eta - cur_snap.eta).seconds) > 600
+                    abs((self._last_snapshot.eta - cur_snap.eta).seconds) > eta_delta
 
         # The live activity can be updted more frequent. Max however in 5 percent steps or if there was a state change
         if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state and not etaUpdate:

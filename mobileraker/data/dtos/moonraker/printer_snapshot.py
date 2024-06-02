@@ -220,4 +220,15 @@ class PrinterSnapshot:
     @property
     def is_timelapse_pause(self) -> bool:
         return self.print_state == "paused" and self.timelapse_pause is True
+    
+    
+    @property
+    def eta_window(self) -> Optional[int]:
+        """
+        Calculate the ETA window based on the estimated time of the current file.
+        Returns: Optional[int]: ETA window in minutes, or None if calculation is not possible.
+        """
+        if self.current_file is not None and self.current_file.estimated_time is not None:
+            return int(self.current_file.estimated_time * 0.05) // 60
+        return None
 
