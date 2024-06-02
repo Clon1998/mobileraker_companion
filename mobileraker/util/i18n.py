@@ -21,6 +21,7 @@ _mobileraker_en: Dict[str, str] = {
     'state_completed_body': 'Finished printing: "$file"',
     'state_error_body': 'Error while printing file: "$file"',
     'state_standby_body': 'Printer is in Standby',
+    'state_resumed_body': 'Resumed printing file: "$file"',
     'm117_custom_title': 'User Notification',
     "filament_sensor_triggered_title": "Filament Sensor Triggered",
     "filament_sensor_triggered_body": "$$sensor triggered on printer $printer_name",
@@ -35,6 +36,7 @@ mobileraker_fr: Dict[str, str] = {
     'state_completed_body': 'Impression terminé: "$file"',
     'state_error_body': 'Erreur lors de l\'impression du fichier: "$file"',
     'state_standby_body': 'L\'imprimante est en veille',
+    'state_resumed_body': 'Reprise de l\'impression du fichier: "$file"',
     'm117_custom_title': 'Notification aux utilisateurs'
 }
 
@@ -47,6 +49,7 @@ _mobileraker_de: Dict[str, str] = {
     'state_completed_body': 'Druck abgeschlossen: "$file"',
     'state_error_body': 'Fehler beim Drucken der Datei: "$file"',
     'state_standby_body': 'Drucker im Standby',
+    'state_resumed_body': 'Druck der Datei fortgesetzt: "$file"',
     'm117_custom_title': 'Nutzer-Benachrichtigung',
     "filament_sensor_triggered_title": "Filament Sensor ausgelöst",
     "filament_sensor_triggered_body": "$$sensor auf Drucker $printer_name ausgelöst",
@@ -61,6 +64,7 @@ _mobileraker_ptbr: Dict[str, str] = {
     'state_completed_body': 'Concluiu a impressão do arquivo: "$file"',
     'state_error_body': 'Erro durante a impressão do arquivo: "$file"',
     'state_standby_body': 'A impressora está em modo de espera',
+    'state_resumed_body': 'Retomou a impressão do arquivo: "$file"',
     'm117_custom_title': 'Notificação do Usuário'
 }
 
@@ -77,6 +81,7 @@ _mobileraker_uk: Dict[str, str] = {
     'state_completed_body': 'Друк завершено: "$file"',
     'state_error_body': 'Помилка під час друку файлу: "$file"',
     'state_standby_body': 'Принтер у режимі очікування',
+    'state_resumed_body': 'Відновлено друк файлу: "$file"',
     'm117_custom_title': 'Сповіщення користувача'
 }
 
@@ -89,6 +94,7 @@ _mobileraker_zhhk: Dict[str, str] = {
     'state_completed_body': '列印完成：“$file”',
     'state_error_body': '列印檔案時發生錯誤：“$file”',
     'state_standby_body': '印表機處於待機狀態',
+    'state_resumed_body': '继续打印文件：“$file”',
     'm117_custom_title': '用戶通知'
 }
 
@@ -101,6 +107,7 @@ _mobileraker_zhcn: Dict[str, str] = {
     'state_completed_body': '打印完成：“$file”',
     'state_error_body': '打印档案时发生错误：“$file”',
     'state_standby_body': '打印机处于待机状态',
+    'state_resumed_body': '继续打印文件：“$file”',
     'm117_custom_title': '用户通知'
 }
 

@@ -326,7 +326,8 @@ class MobilerakerCompanion:
             'state_title', cfg, cur_snap, self.companion_config)
         body = None
         if cur_snap.print_state == "printing":
-            body = "state_printing_body"
+            # Transitions from paused to printing should be resumed
+            body = "state_resumed_body" if cfg.snap.state == "paused" else "state_started_body"
         elif cur_snap.print_state == "paused":
             body = "state_paused_body"
         elif cur_snap.print_state == "complete":
