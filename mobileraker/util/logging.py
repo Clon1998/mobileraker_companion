@@ -35,16 +35,14 @@ class MobilerakerCompanionLoggingHandler(logging.handlers.RotatingFileHandler):
 # Logging based on Arksine's logging setup
 def setup_logging(log_file, software_version):
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-
     coloredlogs.install(
-        logger=root_logger, fmt=f'%(asctime)s %(name)s %(levelname)s %(message)s')
+        logger=root_logger, fmt=f'%(asctime)s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 
     # Check if provided log_file is a file or a directory
     if os.path.isdir(log_file):
         log_file = os.path.join(log_file, "mobileraker.log")
 
-    print(f"Logging to file: {os.path.normpath(log_file)}")
+    root_logger.info(f"Logging to file: {os.path.normpath(log_file)}")
     try:
         fh = MobilerakerCompanionLoggingHandler(
             software_version, log_file, maxBytes=4194304, backupCount=3)
