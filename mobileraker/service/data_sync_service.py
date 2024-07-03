@@ -48,6 +48,7 @@ class DataSyncService:
         self._logger: logging.Logger = logging.getLogger(f'mobileraker.{printer_name}.sync')
         self._queried_for_session: bool = False
         self._objects: Dict[str, Any] = {}
+        self._reset_timelapse_pause: Optional[bool] = None # Helper to reset the timelapse_pause attribute after the printer switched back from paused to printing
         self.klippy_ready: bool = False
         self.server_info: ServerInfo = ServerInfo()
         self.print_stats: PrintStats = PrintStats()
@@ -100,6 +101,14 @@ class DataSyncService:
 
             if object_identifier == 'print_stats':
                 self.print_stats = self.print_stats.updateWith(object_data)
+            
+                # If the state is printing and _reset_timelapse_pause is True, we reset the timelapse_pause attribute
+                if self.print_stats.state != 'paused' and self._reset_timelapse_pause:
+                    self.timelapse_pause = False
+                    self._reset_timelapse_pause = False
+                    self._logger.info("Printer has unpaused after Timelapse plugin took frame. Resetting timelapse_pause attribute.")
+
+                # When the print_stats object is updated, we need to fetch the metadata for the current file
                 fetchMeta = True
             elif object_identifier == 'display_status':
                 self.display_status = self.display_status.updateWith(
@@ -121,10 +130,18 @@ class DataSyncService:
                 self.filament_sensors[object_name] = sensor.updateWith(object_data)
 
             elif rawObjectKey == 'gcode_macro TIMELAPSE_TAKE_FRAME':
-                # check if the is_paused key is present in the object_data and needs to be updated
-                if 'is_paused' in object_data:                    
-                    self.timelapse_pause = object_data['is_paused']
-                    self._logger.info("Timelapse is paused: %s", self.timelapse_pause)
+                if 'is_paused' in object_data:
+                    is_paused = object_data['is_paused']
+                    if is_paused is True:
+                        self.timelapse_pause = True
+                        self._reset_timelapse_pause = False
+                        self._logger.info("Timelapse plugin has paused the printer. Ignoring the next paused printer state.")
+                    elif is_paused is False and self._reset_timelapse_pause is False:
+                        # We need to use a helper attribute to reset the timelapse_pause attribute after the printer switched back from paused to printing
+                        # This is because the printer state is not (always) updated in the same jrpc notification as the gcode_macro TIMELAPSE_TAKE_FRAME
+                        # Which causes a race condition where the timelapse_pause attribute is reset before the printer state is updated.
+                        self._reset_timelapse_pause = True
+                        self._logger.info("Timelapse plugin took frame. Will reset timelapse_pause attribute after printer-state change.")
                 
 
         # Kinda hacky but this works!
