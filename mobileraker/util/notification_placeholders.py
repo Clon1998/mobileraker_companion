@@ -50,7 +50,7 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
 
 def adaptive_eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional[str]:
     if not eta:
-        return
+        return '--'
     if eta.date() <= datetime.today().date():
         # if today, we only return Hour:Mins:Seconds
         return eta.strftime('%H:%M:%S')
@@ -59,7 +59,7 @@ def adaptive_eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional
 
 def eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional[str]:
     if not eta:
-        return
+        return '--'
 
     return eta.strftime(eta_format)
 
