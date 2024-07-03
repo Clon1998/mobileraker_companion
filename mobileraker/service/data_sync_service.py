@@ -30,12 +30,9 @@ class DataSyncService:
 
     Attributes:
         jrpc (MoonrakerClient): The MoonrakerClient instance used for communication.
+        printer_name (str): The name of the printer.
         loop (AbstractEventLoop): The event loop used for handling asynchronous tasks.
-        klippy_ready (bool): A flag indicating whether Klippy is ready or not.
-        server_info (ServerInfo): An instance of ServerInfo to hold server-related data.
-        print_stats (PrintStats): An instance of PrintStats to hold printer stats data.
-        display_status (DisplayStatus): An instance of DisplayStatus to hold display status data.
-        virtual_sdcard (VirtualSDCard): An instance of VirtualSDCard to hold virtual SD card data.
+        resync_retries (int): The number of retries to perform when resyncing data.
     '''
 
     def __init__(
@@ -124,9 +121,11 @@ class DataSyncService:
                 self.filament_sensors[object_name] = sensor.updateWith(object_data)
 
             elif rawObjectKey == 'gcode_macro TIMELAPSE_TAKE_FRAME':
-                # Using the self.timelapse_pause as fallback is required here since the object might be missing. In that case we want to keep the current state.
-                self.timelapse_pause = object_data.get('is_paused', self.timelapse_pause)
-                self._logger.debug("Timelapse is paused: %s", self.timelapse_pause)
+                # check if the is_paused key is present in the object_data and needs to be updated
+                if 'is_paused' in object_data:                    
+                    self.timelapse_pause = object_data['is_paused']
+                    self._logger.info("Timelapse is paused: %s", self.timelapse_pause)
+                
 
         # Kinda hacky but this works!
         # It would be better if the _notify_listeners()/sync current file is called in a different context since this method should only parse!

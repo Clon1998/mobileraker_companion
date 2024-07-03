@@ -46,7 +46,7 @@ class MobilerakerFcmClient:
             requests.exceptions.RequestException: If there was an error while communicating with the mobileraker server.
         """
         jsons = request.toJSON()
-        self.logger.info("Submitting %i notifications to mobileraker server", len(
+        self.logger.info("Submitting %i device-requets to mobileraker server", len(
             request.device_requests))
         self.logger.debug("Sending to firebase fcm (%s): %s",
                           self.fcm_uri, jsons)
