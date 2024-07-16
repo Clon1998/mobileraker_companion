@@ -5,7 +5,7 @@ from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.util.configs import CompanionLocalConfig
 
 
-def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig, additional_data: Dict[str, str]={}) -> str:
+def replace_placeholders(raw: str, cfg: DeviceNotificationEntry, snap: PrinterSnapshot, companion_config: CompanionLocalConfig, additional_data: Optional[Dict[str, str]]=None) -> str:
     """
     Replaces placeholders in the input string with corresponding values from the provided parameters.
 
@@ -19,6 +19,8 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
     Returns:
         str: The input string with placeholders replaced by their corresponding values.
     """
+    if additional_data is None:
+        additional_data = {}
     eta_source = cfg.settings.eta_sources
 
     eta = snap.calc_eta(eta_source)
@@ -43,12 +45,12 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
     }
 
     for name, value in data.items():
-        input = input.replace(f"${name}", str(value) if value is not None else '')
+        raw = raw.replace(f"${name}", str(value) if value is not None else '')
 
     for name, value in additional_data.items():
-        input = input.replace(f"${name}", str(value) if value is not None else '')
+        raw = raw.replace(f"${name}", str(value) if value is not None else '')
 
-    return input
+    return raw
 
 
 def adaptive_eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional[str]:

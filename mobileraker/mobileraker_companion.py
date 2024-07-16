@@ -18,7 +18,7 @@ from mobileraker.service.data_sync_service import DataSyncService
 from mobileraker.util.configs import CompanionLocalConfig, CompanionRemoteConfig
 
 from mobileraker.util.functions import compare_version, generate_notifcation_id_from_uuid, get_software_version, is_valid_uuid, normalized_progress_interval_reached
-from mobileraker.util.i18n import translate, translate_replace_placeholders
+from mobileraker.util.i18n import translate_implicit, translate_replace_placeholders
 from mobileraker.util.notification_placeholders import replace_placeholders
 
 
@@ -571,8 +571,8 @@ class MobilerakerCompanion:
 
         has_title = (len(split) == 2)
 
-        title = split[0].strip() if has_title else translate(
-            cfg.language, 'm117_custom_title')
+        title = split[0].strip() if has_title else translate_implicit(
+            cfg, self.companion_config, 'm117_custom_title')
         title = replace_placeholders(
             title, cfg, cur_snap, self.companion_config)
         body = (split[1] if has_title else split[0]).strip()
