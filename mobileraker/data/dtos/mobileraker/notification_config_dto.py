@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 # "5f4d11e8-ad41-4126-88ff-7593b68555d9": {
 #     "created": "2022-11-25T23:03:47.656260",
@@ -108,6 +108,7 @@ class NotificationSettings:
         self.progress_config: int = 25
         self.state_config: List[str] = []
         self.android_progressbar: bool = True
+        self.eta_sources: List[str] = ['filament','slicer']
 
     @staticmethod
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSettings':
@@ -120,6 +121,7 @@ class NotificationSettings:
             50, round(prog_float * 100)) if prog_float > 0 else -1
         cfg.state_config = json['states']
         cfg.android_progressbar = json['android_progressbar'] if 'android_progressbar' in json else True
+        cfg.eta_sources = json['eta_sources'] if 'eta_sources' in json else []
 
         return cfg
 
