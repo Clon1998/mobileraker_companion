@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import math
 from dateutil import tz
 
@@ -46,6 +46,59 @@ class PrinterSnapshot:
             and self.timelapse_pause == other.timelapse_pause
             and self.filament_sensors == other.filament_sensors
         )
+
+    def remaining_time_avg(self, sources: List[str]) -> Optional[int]:
+        """
+        Calculate the average of remaining times from different criteria based on the provided sources.
+
+        Args:
+            sources (List[str]): List of sources to calculate the average from. Possible values are 'file', 'filament', 'slicer'.
+
+        Returns:
+            Optional[int]: Average remaining time in seconds, or None if calculation is not possible.
+        """
+        remaining = 0
+        cnt = 0
+
+        r_file = self.remaining_time_by_file or 0
+        if 'file' in sources and r_file > 0:
+            remaining += r_file
+            cnt += 1
+
+        r_filament = self.remaining_time_by_filament or 0
+        if 'filament' in sources and r_filament > 0:
+            remaining += r_filament
+            cnt += 1
+
+        r_slicer = self.remaining_time_by_slicer or 0
+        if 'slicer' in sources and r_slicer > 0:
+            remaining += r_slicer
+            cnt += 1
+
+        if cnt == 0:
+            return None
+
+        return remaining // cnt
+
+    def remaining_time_formatted(self, sources: List[str]) -> Optional[str]:
+        sec = self.remaining_time_avg(sources)
+        if sec:
+            return str(timedelta(seconds=sec))[:-3]  # remove the seconds part
+
+
+    def calc_eta(self, sources: List[str]) -> Optional[datetime]:
+        remaining = self.remaining_time_avg(sources)
+        if remaining:
+            now = datetime.now()
+            return now + timedelta(seconds=remaining)
+        
+    def calc_eta_seconds_utc(self, sources: List[str]) -> Optional[int]:
+        eta = self.calc_eta(sources)
+        return int(eta.astimezone(tz.UTC).timestamp()) if eta else None
+
+    @property
+    def eta_available(self) -> bool:
+        return self.remaining_time_avg(['file', 'filament', 'slicer']) is not None
 
     @property
     def remaining_time_by_file(self) -> Optional[int]:
@@ -97,37 +150,6 @@ class PrinterSnapshot:
         return int((slicer_estimate - print_duration))
 
     @property
-    def remaining_time_avg(self) -> Optional[int]:
-        """
-        Calculate the average of remaining times from different criteria.
-
-        Returns:
-            Optional[int]: Average remaining time in seconds, or None if calculation is not possible.
-        """
-        remaining = 0
-        cnt = 0
-
-        r_file = self.remaining_time_by_file or 0
-        if r_file > 0:
-            remaining += r_file
-            cnt += 1
-
-        r_filament = self.remaining_time_by_filament or 0
-        if r_filament > 0:
-            remaining += r_filament
-            cnt += 1
-
-        r_slicer = self.remaining_time_by_slicer or 0
-        if r_slicer > 0:
-            remaining += r_slicer
-            cnt += 1
-
-        if cnt == 0:
-            return None
-
-        return remaining // cnt
-
-    @property
     def print_progress_by_fileposition_relative(self) -> Optional[float]:
         """
         Calculate the printing progress based on file position.
@@ -157,23 +179,7 @@ class PrinterSnapshot:
 
         return self.virtual_sdcard.progress if self.virtual_sdcard else None
 
-    @property
-    def remaining_time_formatted(self) -> Optional[str]:
-        sec = self.remaining_time_avg
-        if sec:
-            return str(timedelta(seconds=sec))[:-3]  # remove the seconds part
 
-    @property
-    def eta(self) -> Optional[datetime]:
-        remaining = self.remaining_time_avg
-        if remaining:
-            now = datetime.now()
-            return now + timedelta(seconds=remaining)
-        
-    @property
-    def eta_seconds_utc(self) -> Optional[int]:
-        return int(self.eta.astimezone(
-            tz.UTC).timestamp()) if self.eta else None
         
 
     @property

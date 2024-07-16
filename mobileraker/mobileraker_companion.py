@@ -212,7 +212,7 @@ class MobilerakerCompanion:
             return True
 
 
-        if self._last_snapshot.eta is None and snapshot.eta is not None:
+        if not self._last_snapshot.eta_available and snapshot.eta_available:
             self._logger.info('ETA is available. Evaluating!')
             return True
 
@@ -459,13 +459,17 @@ class MobilerakerCompanion:
         # Calculate the eta delta based on the estimated time of the current file or 15 minutes (whichever is higher)
         eta_delta = max(15, cur_snap.eta_window) if cur_snap.eta_window is not None else 15
 
-        etaUpdate = self._last_snapshot is not None and \
-                    self._last_snapshot.eta is not None and cur_snap.eta is not None and \
-                    abs((self._last_snapshot.eta - cur_snap.eta).seconds) > eta_delta
+        last_remaining_time = self._last_snapshot.remaining_time_avg(cfg.settings.eta_sources) if self._last_snapshot is not None else None
+        cur_remaining_time = cur_snap.remaining_time_avg(cfg.settings.eta_sources)
+
+
+        eta_update = last_remaining_time is not None and cur_remaining_time is not None and \
+                    abs(last_remaining_time - cur_remaining_time) > eta_delta
 
         # The live activity can be updted more frequent. Max however in 5 percent steps or if there was a state change
-        if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state and not etaUpdate:
+        if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state and not eta_update:
             return None
+            
 
         self._logger.info(
             'LiveActivityUpdate passed'
@@ -474,7 +478,7 @@ class MobilerakerCompanion:
         # Set the last apns message time to now
         self._last_apns_message = time.monotonic_ns()
         
-        return LiveActivityContentDto(cfg.apns.liveActivity, cur_snap.progress, cur_snap.eta_seconds_utc, "update" if cur_snap.print_state in [
+        return LiveActivityContentDto(cfg.apns.liveActivity, cur_snap.progress, cur_snap.calc_eta_seconds_utc(cfg.settings.eta_sources), "update" if cur_snap.print_state in [
                                       "printing", "paused"] else "end")
 
     def _custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, is_m117: bool) -> Optional[NotificationContentDto]:

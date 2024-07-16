@@ -19,11 +19,14 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
     Returns:
         str: The input string with placeholders replaced by their corresponding values.
     """
-    eta = snap.eta
+    eta_source = cfg.settings.eta_sources
+
+    eta = snap.calc_eta(eta_source)
     if eta is not None:
         eta = eta.astimezone(companion_config.timezone)
 
     progress = snap.print_progress_by_fileposition_relative if snap.print_state == 'printing' else None
+    remaining_time_avg = snap.remaining_time_avg(eta_source)
 
     data = {
         'printer_name': cfg.machine_name,
@@ -31,7 +34,7 @@ def replace_placeholders(input: str, cfg: DeviceNotificationEntry, snap: Printer
         'file': snap.filename if snap.filename is not None else 'UNKNOWN',
         'eta': eta_formatted(eta, companion_config.eta_format),
         'a_eta': adaptive_eta_formatted(eta, companion_config.eta_format),
-        'remaining_avg': snap.remaining_time_avg if snap.remaining_time_avg else '--:--',
+        'remaining_avg': remaining_time_avg if remaining_time_avg else '--:--',
         'remaining_file': snap.remaining_time_by_file if snap.remaining_time_by_file else '--:--',
         'remaining_filament': snap.remaining_time_by_filament if snap.remaining_time_by_filament else '--:--',
         'remaining_slicer': snap.remaining_time_by_slicer if snap.remaining_time_by_slicer else '--:--',
