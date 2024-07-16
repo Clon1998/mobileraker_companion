@@ -120,7 +120,11 @@ class NotificationSettings:
         cfg.progress_config = min(
             50, round(prog_float * 100)) if prog_float > 0 else -1
         cfg.state_config = json['states']
-        cfg.android_progressbar = json['androidProgressbar'] if 'androidProgressbar' in json else True
+        if 'androidProgressbar' in json:
+            cfg.android_progressbar = json['androidProgressbar']
+        elif 'android_progressbar' in json:
+            cfg.android_progressbar = json['android_progressbar']
+
         if 'etaSources' in json:
             cfg.eta_sources = json['etaSources']
 

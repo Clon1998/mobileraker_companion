@@ -150,6 +150,7 @@ By default, you don't need to create a config file. However, if you want to use 
 ```properties
 [general]
 language: en 
+# !!! DEPRECATED. The app now syncs the app's language to the companion
 # one of the supported languages defined in i18n.py#languages (de,en,...)
 # !!! For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!
 # Default: en

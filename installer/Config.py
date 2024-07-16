@@ -18,7 +18,7 @@ class Config:
     UPDATE_MANAGER_FILE_NAME = "mobileraker-moonraker.conf"
 
     CONFIG_HELPERS = {
-        "general.language": ["one of the supported languages defined in i18n.py#languages (de,en,...)", "!!! For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!","Default: en"],
+        "general.language": ["!!! DEPRECATED. The app now syncs the app's language to the companion", "one of the supported languages defined in i18n.py#languages (de,en,...)", "!!! For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!","Default: en"],
         "general.timezone": ["The system's timezone e.g. Europe/Berlin for Berlin time or US/Central.", "For more values see https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568", "Default: Tries to use system timezone", "Optional"],
         "general.eta_format": ["Format used for eta and adaptive_eta placeholder variables", "For available options see https://strftime.org/", "Note that you will have to escape the % char by using a 2nd one e.g.: %d/%m/%Y -> %%d/%%m/%%Y", "Default: %%d.%%m.%%Y, %%H:%%M:%%S", "Optional"],
         "general.include_snapshot": ["!! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!", "Include a snapshot of the webcam in any print status/progress update notifications", "Default: True", "Optional"],
@@ -142,6 +142,9 @@ class Config:
             except Exception as e:
                 Logger.Warn("Invalid input, try again. Logger.Error: "+str(e))
         Logger.Info("Selected language: "+available_languages[respond_index])
+        Logger.Warn("Note: The language selection can be changed in the mobileraker.conf file later.")
+        Logger.Error("Deprecation Warning: The selected language will only be used for app-versions below 2.7.1. For newer versions, the app will sync your mobile device language with the companion.")
+
         return available_languages[respond_index]
 
     def _link_mobileraker_conf(self, context: Context) -> None:
