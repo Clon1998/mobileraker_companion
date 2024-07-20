@@ -478,8 +478,16 @@ class MobilerakerCompanion:
         # Set the last apns message time to now
         self._last_apns_message = time.monotonic_ns()
         
-        return LiveActivityContentDto(cfg.apns.liveActivity, cur_snap.progress, cur_snap.calc_eta_seconds_utc(cfg.settings.eta_sources), "update" if cur_snap.print_state in [
-                                      "printing", "paused"] else "end")
+        remote_event = "update" if cur_snap.print_state in ["printing", "paused"] else "end"
+
+        return LiveActivityContentDto(
+            remote_event,
+            cfg.apns.liveActivity,
+            cur_snap.progress,
+            cur_snap.calc_eta_seconds_utc(cfg.settings.eta_sources),
+            cur_snap.print_state,
+            cur_snap.filename,
+            )
 
     def _custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, is_m117: bool) -> Optional[NotificationContentDto]:
         """

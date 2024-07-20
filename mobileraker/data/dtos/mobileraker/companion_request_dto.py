@@ -36,6 +36,12 @@ class NotificationContentDto(ContentDto):
             json['image'] = self.image
 
         return json
+    
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
 
 
 class ProgressNotificationContentDto(ContentDto):
@@ -63,31 +69,48 @@ class ProgressNotificationContentDto(ContentDto):
         }
 
         return json
-
+    
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
 
 class LiveActivityContentDto(ContentDto):
     def __init__(self,
+                 live_activity_event: Optional[str],  # update or end
                  token: str,
                  progress: float,  # (0.0 - 1.0)
                  eta: Optional[int],  # seconds since unix epoch
-                 live_activity_event: Optional[str],  # update or end
+                 print_state: str,
+                 file: Optional[str] = None,
                  ):
         super().__init__()
         self.live_activity_event: Optional[str] = live_activity_event
         self.token: str = token
         self.progress: float = progress
         self.eta: Optional[int] = eta
+        self.print_state: str = print_state
+        self.file: Optional[str] = file
 
     def toJSON(self) -> Dict[str, Any]:
         json = {
             "type": "update" if self.live_activity_event is None else self.live_activity_event,
             "token": self.token,
             "progress": self.progress,
+            "printState": self.print_state,
         }
         if self.eta is not None:
             json['eta'] = self.eta
+        if self.file is not None:
+            json['file'] = self.file
         return json
 
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
 
 class DeviceRequestDto:
     def __init__(self,
@@ -113,14 +136,11 @@ class DeviceRequestDto:
             "notifications": notifications,
         }
 
-    # def __eq__(self, o: object) -> bool:
-    #     if not isinstance(o, CompanionRequestDto):
-    #         return False
-
-    #     return self.print_state == o.print_state and \
-    #         self.tokens == o.tokens and self.printer_identifier == o.printer_identifier and \
-    #         self.filename == o.filename and self.progress == o.progress and \
-    #         self.printing_duration == o.printing_duration
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
 
 
 class FcmRequestDto:
@@ -138,3 +158,9 @@ class FcmRequestDto:
             "version": 1,
             "deviceRequests": dtos,
         }
+    
+    def __str__(self):
+        return '%s(%s)' % (
+            type(self).__name__,
+            ', '.join('%s=%s' % item for item in vars(self).items())
+        )
