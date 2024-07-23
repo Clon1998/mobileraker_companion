@@ -435,7 +435,7 @@ class MobilerakerCompanion:
             return None
 
         nid = generate_notifcation_id_from_uuid(cfg.machine_id, 4)
-        channel = f'{cfg.machine_id}-progressUpdates'
+        channel = f'{cfg.machine_id}-progressUpdates' if cfg.version is None or compare_version(cfg.version, "2.7.2") < 0 else f'{cfg.machine_id}-progressBarUpdates'
         title = translate_replace_placeholders(
             'print_progress_title', cfg, cur_snap, self.companion_config)
         body = translate_replace_placeholders(
