@@ -36,6 +36,7 @@ class CompanionRemoteConfig:
     def __init__(self) -> None:
         super().__init__()
         self.increments: int = 5
+        self.interval: int = 10 * 60 # in sec -> intervall for updates o fprogress
         self.uri: str = "some url"
 
 

@@ -13,6 +13,7 @@ class PrinterSnapshot:
         print_state: str,
     ) -> None:
         super().__init__()
+        self.timestamp: datetime = datetime.now()
         self.klippy_ready: bool = klippy_ready
         self.print_state: str = print_state
         self.m117: Optional[str] = None
@@ -29,14 +30,15 @@ class PrinterSnapshot:
 
     def __str__(self):
         filament_sensors_str = ', '.join(str(v) for v in self.filament_sensors.values())
-        return f"PrinterSnapshot(klippy_ready={self.klippy_ready}, print_state={self.print_state}, m117={self.m117}, m117_hash={self.m117_hash}, virtual_sdcard={self.virtual_sdcard}, print_stats={self.print_stats}, current_file={self.current_file}, toolhead={self.toolhead}, gcode_move={self.gcode_move}, gcode_response={self.gcode_response}, gcode_response_hash={self.gcode_response_hash}, timelapse_pause={self.timelapse_pause}, filament_sensors={filament_sensors_str})"
+        return f"PrinterSnapshot(timestamp={self.timestamp.isoformat()},klippy_ready={self.klippy_ready}, print_state={self.print_state}, m117={self.m117}, m117_hash={self.m117_hash}, virtual_sdcard={self.virtual_sdcard}, print_stats={self.print_stats}, current_file={self.current_file}, toolhead={self.toolhead}, gcode_move={self.gcode_move}, gcode_response={self.gcode_response}, gcode_response_hash={self.gcode_response_hash}, timelapse_pause={self.timelapse_pause}, filament_sensors={filament_sensors_str})"
 
     def __eq__(self, other):
         if not isinstance(other, PrinterSnapshot):
             return False
 
         return (
-            self.klippy_ready == other.klippy_ready
+            self.timestamp == other.timestamp
+            and self.klippy_ready == other.klippy_ready
             and self.print_state == other.print_state
             and self.m117 == other.m117
             and self.m117_hash == other.m117_hash

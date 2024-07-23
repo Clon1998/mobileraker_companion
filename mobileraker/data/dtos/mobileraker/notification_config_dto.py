@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 # "5f4d11e8-ad41-4126-88ff-7593b68555d9": {
@@ -147,6 +148,9 @@ class NotificationSnap:
                  progress: int = 0,
                  progress_live_activity: int = 0,
                  progress_progressbar: int = 0,
+                 last_progress: datetime = datetime.fromisocalendar(1970, 1, 1),
+                 last_progress_live_activity: datetime = datetime.fromisocalendar(1970, 1, 1),
+                 last_progress_progressbar: datetime = datetime.fromisocalendar(1970, 1, 1),
                  state: str = '',
                  m117: str = '',
                  gcode_response: Optional[str] = None,
@@ -155,6 +159,9 @@ class NotificationSnap:
         self.progress: int = progress
         self.progress_live_activity: int = progress_live_activity
         self.progress_progressbar: int = progress_progressbar
+        self.last_progress: datetime = last_progress # Not used yet...!
+        self.last_progress_live_activity: datetime = last_progress_live_activity
+        self.last_progress_progressbar: datetime = last_progress_progressbar
         self.state: str = state
         self.m117: str = m117
         self.gcode_response: Optional[str] = gcode_response
@@ -175,6 +182,13 @@ class NotificationSnap:
         cfg.gcode_response = json['gcode_response'] if 'gcode_response' in json else None
         cfg.filament_sensors = json['filament_sensors'] if 'filament_sensors' in json else []
 
+        if 'last_progress' in json:
+            cfg.last_progress = datetime.fromisoformat(json['last_progress'])
+        if 'last_progress_live_activity' in json:
+            cfg.last_progress_live_activity = datetime.fromisoformat(json['last_progress_live_activity'])
+        if 'last_progress_progressbar' in json:
+            cfg.last_progress_progressbar = datetime.fromisoformat(json['last_progress_progressbar'])
+
         return cfg
 
     def toJSON(self) -> Dict[str, Any]:
@@ -189,6 +203,13 @@ class NotificationSnap:
 
         if self.gcode_response is not None:
             data["gcode_response"] = self.gcode_response
+            
+        if self.last_progress is not None:
+            data["last_progress"] = self.last_progress.isoformat()
+        if self.last_progress_live_activity is not None:
+            data["last_progress_live_activity"] = self.last_progress_live_activity.isoformat()
+        if self.last_progress_progressbar is not None:
+            data["last_progress_progressbar"] = self.last_progress_progressbar.isoformat()
 
         return data
 
@@ -200,6 +221,9 @@ class NotificationSnap:
                   m117: Optional[str] = None,
                   gcode_response: Optional[str] = None,
                   filament_sensors: Optional[List[str]] = None,
+                  last_progress: Optional[datetime] = None,
+                  last_progress_live_activity: Optional[datetime] = None,
+                  last_progress_progressbar: Optional[datetime] = None,
                   ) -> 'NotificationSnap':
         """
         Create a new instance of NotificationSnap with updated attributes.
@@ -222,6 +246,9 @@ class NotificationSnap:
             m117=self.m117 if m117 is None else m117,
             gcode_response=self.gcode_response if gcode_response is None else gcode_response,
             filament_sensors=self.filament_sensors if filament_sensors is None else filament_sensors,
+            last_progress=self.last_progress if last_progress is None else last_progress,
+            last_progress_live_activity=self.last_progress_live_activity if last_progress_live_activity is None else last_progress_live_activity,
+            last_progress_progressbar=self.last_progress_progressbar if last_progress_progressbar is None else last_progress_progressbar
         )
 
         return copied_snap
@@ -243,7 +270,10 @@ class NotificationSnap:
             self.state == other.state and
             self.m117 == other.m117 and
             self.gcode_response == other.gcode_response and
-            self.filament_sensors == other.filament_sensors
+            self.filament_sensors == other.filament_sensors and
+            self.last_progress == other.last_progress and
+            self.last_progress_live_activity == other.last_progress_live_activity and
+            self.last_progress_progressbar == other.last_progress_progressbar
         )
 
 

@@ -2,6 +2,7 @@ from asyncio import AbstractEventLoop, Lock
 import asyncio
 import base64
 import logging
+from datetime import datetime
 from typing import List, Optional, Union
 import time
 
@@ -172,7 +173,7 @@ class MobilerakerCompanion:
                 )
                 device_requests.append(dto)
             
-            await self._update_app_snapshot(cfg, snapshot)
+            await self._update_app_snapshot(cfg, snapshot, progress_noti is not None, progressbar_noti is not None, live_activity_update is not None)
             await self._clean_up_apns(cfg, snapshot)
 
         self._take_webcam_image(device_requests)
@@ -259,6 +260,12 @@ class MobilerakerCompanion:
             if last_sensor.enabled != sensor.enabled:
                 self._logger.info('Filament sensor enabled/disabled. Evaluating!')
                 return True
+
+        # Time evaluation
+        if (datetime.now() - self._last_snapshot.timestamp).seconds >= (self.remote_config.interval+5): # add 5 seconds to ensure other values are also updated
+            self._logger.info('Time-Interval reached. Evaluating!')
+            return True
+
 
         # Yes I know I can return on the last if, but I want to log the reason why it triggered an evaluation
         return False
@@ -418,19 +425,22 @@ class MobilerakerCompanion:
         if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
             return None
 
+        perc_interval_reached = normalized_progress_interval_reached(cfg.snap.progress_progressbar, cur_snap.progress, self.remote_config.increments)
+        time_interval_reached = (datetime.now() - cfg.snap.last_progress_progressbar).seconds >= self.remote_config.interval and cur_snap.print_state in ["printing", "paused"]
+
         self._logger.info(
-            'PBarNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s',
+            'PBarNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s. TimeInterval: %s',
             cur_snap.progress,
             cfg.snap.progress_progressbar,
             cur_snap.progress - cfg.snap.progress_progressbar,
             max(self.remote_config.increments, cfg.settings.progress_config),
-            normalized_progress_interval_reached(cfg.snap.progress_progressbar, cur_snap.progress, max(
-                self.remote_config.increments, cfg.settings.progress_config)),
+            perc_interval_reached,
+            time_interval_reached,
         )
 
         # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
         if (cfg.snap.state in ["printing", "paused"]
-                    and not normalized_progress_interval_reached(cfg.snap.progress_progressbar, cur_snap.progress, self.remote_config.increments)
+                    and not perc_interval_reached and not time_interval_reached
                 ):
             return None
 
@@ -463,16 +473,22 @@ class MobilerakerCompanion:
         cur_remaining_time = cur_snap.remaining_time_avg(cfg.settings.eta_sources)
 
 
-        eta_update = last_remaining_time is not None and cur_remaining_time is not None and \
+        eta_update = last_remaining_time is None and cur_remaining_time is not None or last_remaining_time is not None and cur_remaining_time is not None and \
                     abs(last_remaining_time - cur_remaining_time) > eta_delta
 
+        perc_interval_reached = normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments)
+        time_interval_reached = (datetime.now() - cfg.snap.last_progress_live_activity).seconds >= self.remote_config.interval and cur_snap.print_state in ["printing", "paused"]
+
         # The live activity can be updted more frequent. Max however in 5 percent steps or if there was a state change
-        if not normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments) and cfg.snap.state == cur_snap.print_state and not eta_update:
+        if not perc_interval_reached and cfg.snap.state == cur_snap.print_state and not eta_update and not time_interval_reached:
             return None
             
 
         self._logger.info(
-            'LiveActivityUpdate passed'
+            'LiveActivityUpdate passed. perc_interval_reached: %s, time_interval_reached: %s, eta_update: %s',
+            perc_interval_reached,
+            time_interval_reached,
+            eta_update,
         )
 
         # Set the last apns message time to now
@@ -572,8 +588,6 @@ class MobilerakerCompanion:
 
         return notifications
 
-
-
     def _construct_custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, message: str) -> Optional[NotificationContentDto]:
         split = message.split('|')
 
@@ -618,39 +632,31 @@ class MobilerakerCompanion:
             self._logger.error(
                 "Could not push notifications to mobileraker backend, %s: %s", type(err), err)
 
-    async def _update_app_snapshot(self, cfg: DeviceNotificationEntry, printer_snap: PrinterSnapshot) -> None:
+    async def _update_app_snapshot(self, cfg: DeviceNotificationEntry, printer_snap: PrinterSnapshot, had_progress: bool, had_progressbar: bool, had_progress_liveactivity: bool) -> None:
         try:
             last = cfg.snap
 
             progress_update = None
             if printer_snap.print_state not in ['printing', 'paused']:
                 progress_update = 0
-            elif (last.progress != printer_snap.progress
-                  and printer_snap.progress is not None
-                  and (normalized_progress_interval_reached(last.progress, printer_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
-                       or printer_snap.progress < last.progress)):
+            elif had_progress:
                 progress_update = printer_snap.progress
 
             progress_live_activity_update = None
             if printer_snap.print_state not in ['printing', 'paused']:
                 progress_live_activity_update = 0
-            elif (last.progress_live_activity != printer_snap.progress
-                  and printer_snap.progress is not None
-                  and (normalized_progress_interval_reached(last.progress_live_activity, printer_snap.progress, self.remote_config.increments)
-                       or printer_snap.progress < last.progress_live_activity)):
+            elif had_progress_liveactivity:
                 progress_live_activity_update = printer_snap.progress
 
             progressbar_update = None
             if printer_snap.print_state not in ['printing', 'paused']:
                 progressbar_update = 0
-            elif (last.progress_progressbar != printer_snap.progress
-                  and printer_snap.progress is not None
-                  and (normalized_progress_interval_reached(last.progress_progressbar, printer_snap.progress, self.remote_config.increments)
-                       or printer_snap.progress < last.progress_progressbar)):
+            elif had_progressbar:
                 progressbar_update = printer_snap.progress
 
             # get list of all filament that have no filament detected (Enabled and Disabled, if we only use enabled once, this might trigger a notification if the user enables a sensor and it detects no filament)
             filament_sensors = [key for key, sensor in printer_snap.filament_sensors.items() if not sensor.filament_detected and not key in self.exclude_sensors]
+            now = datetime.now()
             
             updated = last.copy_with(
                 state=printer_snap.print_state if last.state != printer_snap.print_state and not printer_snap.is_timelapse_pause else None,
@@ -659,7 +665,10 @@ class MobilerakerCompanion:
                 progress_progressbar=progressbar_update,
                 m117=printer_snap.m117_hash if last.m117 != printer_snap.m117_hash else None,
                 gcode_response=printer_snap.gcode_response_hash if last.gcode_response != printer_snap.gcode_response_hash else None,
-                filament_sensors=filament_sensors if last.filament_sensors != filament_sensors else None
+                filament_sensors=filament_sensors if last.filament_sensors != filament_sensors else None,
+                last_progress=now if had_progress else last.last_progress,
+                last_progress_live_activity=now if had_progress_liveactivity else last.last_progress_live_activity,
+                last_progress_progressbar=now if had_progressbar else last.last_progress_progressbar
             )
 
             if updated == last:
