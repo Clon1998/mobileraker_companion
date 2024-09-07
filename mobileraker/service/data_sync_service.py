@@ -9,7 +9,11 @@ from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.util.functions import to_klipper_object_identifier
 
 
-
+class KlippyNotReadyError(Exception):
+    '''
+    Exception to be raised when Klippy is not ready after a resync process.
+    '''
+    pass
 
 class DataSyncService:
     # Static list to define the objects to subscribe for updates if they are available.
@@ -80,8 +84,7 @@ class DataSyncService:
         self._jrpc.register_method_listener(
             'notify_gcode_response', lambda resp: self._on_gcode_response(resp["params"][0]))
 
-        self._jrpc.register_connection_listener(
-            lambda is_connected: self._loop.create_task(self._jrpc_connection_listener(is_connected)))
+        self._jrpc.register_connection_listener(self._on_jrpc_connection_state)
 
     def _parse_objects(self, status_objects: Dict[str, Any], err: Optional[str] = None) -> None:
         '''
@@ -201,6 +204,14 @@ class DataSyncService:
         self.gcode_response = response
         self._notify_listeners()
 
+    def _on_jrpc_connection_state(self, is_connected: bool):
+        self._logger.info("Connection state changed to <is_connected: %s>", is_connected)
+        if is_connected:
+            self._loop.create_task(self.resync())
+        else:
+            self._queried_for_session = False
+
+
     async def _sync_klippy_data(self) -> None:
         '''
         Synchronize data with Klippy.
@@ -294,19 +305,10 @@ class DataSyncService:
         for callback in self._snapshot_listeners:
             callback(snap)
 
-    async def _jrpc_connection_listener(self, is_connected: bool):
-        if is_connected:
-            try:
-                await self.resync()
-            except TimeoutError as err:
-                self._logger.error("Could not setup sync client: %s", err)
-        else:
-            self._queried_for_session = False
-
     async def _resync(self, no_try: int = 0) -> None:
         if no_try >= self.resync_retries:
-            raise TimeoutError(
-                f"Resync process was not completed after {no_try} retries.")
+            raise KlippyNotReadyError(
+                f"Resync process was not completed after {no_try} retries. Klippy was not ready after {self.resync_retries} retries.")
 
         await self._sync_klippy_data()
 
@@ -364,12 +366,18 @@ class DataSyncService:
             if self.klippy_ready and not self._queried_for_session:
                 self._queried_for_session = True
                 await self._subscribe_for_object_updates()
+            else:
+                self._logger.warning("Klippy is not ready, not subscribing for updates during this resync.")
 
             self._logger.info("(Re)Sync completed")
+        except KlippyNotReadyError:
+            self._logger.error("Resync process was not completed. Klippy was not ready after %i retries.", self.resync_retries)
         except asyncio.TimeoutError:
             self._logger.warning("Timeout error occured while resyncing...")
         except ConnectionError:
             self._logger.warning("Connection error occured while resyncing...")
+        except asyncio.CancelledError:
+            self._logger.info("Resync task was cancelled")
 
     def take_snapshot(self) -> PrinterSnapshot:
         '''
