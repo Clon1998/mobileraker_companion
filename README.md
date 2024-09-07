@@ -102,8 +102,8 @@ Run the Companion in a Docker container by creating a `mobileraker.conf` file an
 
 ```
 docker run -d \
-    --name mobileraker_companion
-    -v /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf
+    --name mobileraker_companion \
+    -v /path/to/mobileraker.conf:/opt/printer_data/config/mobileraker.conf \
     ghcr.io/clon1998/mobileraker_companion:latest
 ```
 
