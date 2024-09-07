@@ -88,6 +88,7 @@ class MoonrakerClient:
 
         Raises:
             ConnectionError: If the WebSocket connection is not established.
+            asyncio.TimeoutError: If the request to send the message times out.
         '''
         if self._websocket is None:
             self._logger.error('Websocket is not yet connected?')
@@ -120,7 +121,7 @@ class MoonrakerClient:
 
         Raises:
             ConnectionError: If the WebSocket connection is not established.
-            TimeoutError: If the response is not received within a certain time frame.
+            asyncio.TimeoutError: If the response is not received within a certain time frame.
                         (This might not be explicitly mentioned in the code snippet,
                         but could be an assumption for a production implementation.)
         '''
