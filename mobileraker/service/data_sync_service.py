@@ -81,16 +81,7 @@ class DataSyncService:
             'notify_gcode_response', lambda resp: self._on_gcode_response(resp["params"][0]))
 
         self._jrpc.register_connection_listener(
-            lambda is_conncected: self._loop.create_task(self._handle_connection_event(is_conncected)))
-
-    async def _handle_connection_event(self, is_connected: bool):
-        try:
-            await self._loop.create_task(self._jrpc_connection_listener(is_connected))
-        except asyncio.CancelledError:
-            pass  # Task was cancelled, which is okay
-        except Exception as e:
-            self._logger.error(f"Error in connection listener: {e}")
-            
+            lambda is_connected: self._loop.create_task(self._jrpc_connection_listener(is_connected)))
 
     def _parse_objects(self, status_objects: Dict[str, Any], err: Optional[str] = None) -> None:
         '''
