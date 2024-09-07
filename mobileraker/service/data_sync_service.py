@@ -210,6 +210,7 @@ class DataSyncService:
             self._loop.create_task(self.resync())
         else:
             self._queried_for_session = False
+            self.klippy_ready = False
 
 
     async def _sync_klippy_data(self) -> None:
@@ -367,7 +368,7 @@ class DataSyncService:
                 self._queried_for_session = True
                 await self._subscribe_for_object_updates()
             else:
-                self._logger.warning("Klippy is not ready, not subscribing for updates during this resync.")
+                self._logger.warning("Not subscribing to updates because either klippy was not ready or session already subed. klippy_ready: %s, _queried_for_session: %s", self.klippy_ready, self._queried_for_session)   
 
             self._logger.info("(Re)Sync completed")
         except KlippyNotReadyError:
