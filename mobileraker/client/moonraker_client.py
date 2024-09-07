@@ -61,12 +61,10 @@ class MoonrakerClient:
                 self._logger.info("websocket closed ?????...")
             except exceptions.ConnectionClosed:
                 self._logger.info("websocket was closed...")
-                self._notify_connection_listeners(False)
-                continue
             except Exception as err:
                 self._logger.info("Unexpected exception occured %s", err)
+            finally:
                 self._notify_connection_listeners(False)
-                continue
 
     async def send_method(self, method: str, callback: Optional[Callable[[Dict[str, Any], Optional[str]], Any]] = None, params: Optional[dict] = None, timeout: float = 10.0) -> int:
 
