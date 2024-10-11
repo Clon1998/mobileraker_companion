@@ -191,8 +191,8 @@ install_or_update_system_dependencies()
         # But in general, PY will already be installed, so there's no need to try.
         # On the K1, the only we thing we ensure is that virtualenv is installed via pip.
         if [[ -f /opt/bin/opkg ]]; then
-            opkg update || true
-            opkg install ${CREALITY_DEP_LIST}
+            /opt/bin/opkg update || true
+            /opt/bin/opkg install ${CREALITY_DEP_LIST}
         fi
         pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir virtualenv
     elif [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
