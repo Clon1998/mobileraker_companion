@@ -21,6 +21,10 @@ Companion for [Mobileraker](https://github.com/Clon1998/mobileraker), enabling p
   - [Using the Installer](#using-the-installer)
   - [Installation via Kiauh](#installation-via-kiauh)
   - [Run the Companion in Docker](#run-the-companion-in-docker)
+  - [Standalone Installation](#standalone-installation)
+    - [Key Benefits](#key-benefits)
+    - [Installation Requirements](#installation-requirements-1)
+    - [Quick Installation Steps](#quick-installation-steps)
   - [Manual Installation](#manual-installation)
 - [Companion - Multi-Printer](#companion---multi-printer)
 - [Companion - Config](#companion---config)
@@ -117,6 +121,33 @@ services:
 ```
 > [!WARNING]
 > Adjust the paths in the volume mounts to point to your `mobileraker.conf` file.
+
+## Standalone Installation
+
+Mobileraker Companion offers a flexible standalone installation option for Debian-based systems, ideal for deploying on separate hardware with limited resources. This mode allows you to run the companion on a machine independent of your 3D printer's primary system.
+
+### Key Benefits
+- **Independent Deployment**: Run on a separate device from your 3D printer
+- **Resource Efficiency**: Suitable for systems with minimal computing resources
+- **Flexible Monitoring**: Simplified setup for distributed monitoring
+
+### Installation Requirements
+- Debian-based Linux distribution
+- Git
+- Basic command-line familiarity
+
+### Quick Installation Steps
+
+1. Open your terminal
+2. Navigate to your home directory
+3. Clone the Mobileraker Companion repository
+4. Run the standalone installer
+
+```bash
+cd ~/
+git clone https://github.com/Clon1998/mobileraker_companion.git
+./mobileraker_companion/scripts/install.sh -standalone
+```
 
 ## Manual Installation
 
