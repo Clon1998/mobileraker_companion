@@ -2,7 +2,11 @@ import sys
 import traceback
 from typing import Optional
 
+from installer.DiscoveryStandalone import DiscoveryStandalone
 
+
+
+from .TimeSync import TimeSync
 from .Config import Config
 from .Logging import Logger
 from .Service import Service
@@ -69,6 +73,7 @@ class Installer:
 
         # Before we do the first validation, make sure the User var is setup correctly and update if needed.
         permissions = Permissions()
+        permissions.ensure_valid_username_for_root_installation(context)
 
         # Validate we have the required args, but not the moonraker values yet, since they are optional.
         # All generation 1 vars must exist and be valid.
@@ -84,6 +89,11 @@ class Installer:
             # If we should show help, do it now and return.
             self.print_help()
             return
+        
+        # Ensure that the system clock sync is enabled. For some MKS PI systems the OS time is wrong and sync is disabled.
+        # The user would of had to manually correct the time to get this installer running, but we will ensure that the
+        # time sync systemd service is enabled to keep the clock in sync after reboots, otherwise it will cause SSL errors.
+        TimeSync.ensure_ntp_sync_enabled(context)
 
         # Ensure the script at least has sudo permissions.
         # It's required to set file permission and to write / restart the service.
@@ -110,8 +120,12 @@ class Installer:
             return
         
         # Next step is to find the moonraker files.
-        discovery = Discovery()
-        discovery.start(context)
+        if context.is_standalone:
+            discovery = DiscoveryStandalone()
+            discovery.start(context)
+        else:
+            discovery = Discovery()
+            discovery.start(context)
 
         # Validate the response.
         # TODO: Maybe discovery should also detect if a comapnion instance exists?

@@ -9,6 +9,33 @@ class Permissions:
     # Must be lower case.
     ROOT_USER_NAME = "root"
 
+
+    def ensure_valid_username_for_root_installation(self, context: Context) -> None:
+        """
+        Validate and correct the username for root-based installations.
+
+        In some companion or Bambu setups with a single root user, the username 
+        might not be explicitly set. This method ensures the username is correctly 
+        configured when the home directory indicates a root installation.
+
+        Specifically, this method:
+        - Checks if the installation is standalone
+        - Verifies if the username is unset or empty
+        - Sets the username to 'root' if the home path starts with '/root/'
+
+        Note: This method runs before the first context validation, 
+        so context variables may be None.
+
+        Args:
+            context (Context): The installation context containing user information.
+        """
+        # If this is a standalone installation, validate the username
+        if context.is_standalone:
+            if context.username is None or len(context.username) == 0:
+                if context.user_home is not None and (context.user_home.lower() == "/root" or context.user_home.lower().startswith("/root/")):
+                    Logger.Debug("No user passed, but we detected the user is root.")
+                    context.username = Permissions.ROOT_USER_NAME
+
     def validate_root_privileges(self, context:Context) -> None:
         """
         Validates the root privileges for the installer script.
@@ -26,9 +53,15 @@ class Permissions:
         # If the repo is owned by the root, it can't do that.
         # For the Sonic Pad and K1 setup, the only user is root, so it's ok.
     
-        if not context.is_creality_os and context.username.lower() == Permissions.ROOT_USER_NAME:
-            raise RuntimeError("The installer was ran under the root user, this will cause problems with Moonraker. Please run the installer script as a non-root user, usually that's the `pi` user.")
+        # IT'S NOT OK TO INSTALL AS ROOT for the local klipper setup.
+        # This is because the moonraker updater system needs to get able to access the .git repo.
+        # If the repo is owned by the root, it can't do that.
+        # For the Sonic Pad and K1 setup, the only user is root, so it's ok.
+        if context.is_standalone is False and context.is_creality_os is False:
+            if context.username.lower() == Permissions.ROOT_USER_NAME:
+                raise Exception("The installer was ran under the root user, this will cause problems with Moonraker. Please run the installer script as a non-root user, usually that's the `pi` user or 'mks' for MKS PI.")
 
+        
         # But regardless of the user, we must have sudo permissions.
         # pylint: disable=no-member # Linux only
         if os.geteuid() != 0:
@@ -68,8 +101,9 @@ class Permissions:
         Util.update_file_ownership(context.repo_root, context.username)
 
         # These following files or folders must be owned by the user the service is running under.
-        ensure_permissions(context.moonraker_config_file_path)
         ensure_permissions(context.mobileraker_conf_path)
+        if context.has_moonraker_config_file_path:
+            ensure_permissions(context.moonraker_config_file_path)
         if context.has_mobileraker_conf_link:
             ensure_permissions(context.mobileraker_conf_link)
 

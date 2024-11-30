@@ -87,15 +87,12 @@ class Config:
             Logger.Blank()
             Logger.Blank()
             Logger.Warn(f"No printer sections found in {Config.CONFIG_FILE_NAME}, adding a default one.")
-            Logger.Warn(f"Please verify the config settings are correct after the install is complete in the {Config.CONFIG_FILE_NAME}.")
-            Logger.Info("Note: If you have multiple printers, you will need to add them manually in the same file and format.")
-            self._add_printer("default", context, config, write_section)
+            self._add_printer_with_user_input(context, config, write_section, "default")
         elif not self._printer_in_config(context, config, printer_sections):
             Logger.Blank()
             Logger.Blank()
             Logger.Warn(f"Printer section for Moonraker Instance with port {context.moonraker_port} not found in {Config.CONFIG_FILE_NAME}, adding it as new one.")
-            Logger.Warn(f"Please verify the config settings are correct after the install is complete in the {Config.CONFIG_FILE_NAME}.")
-            self._add_printer(f"moonraker_{context.moonraker_port}", context, config, write_section)
+            self._add_printer_with_user_input(context, config, write_section, f"moonraker_{context.moonraker_port}")
         else:
             Logger.Blank()
             Logger.Blank()
@@ -148,8 +145,9 @@ class Config:
         return available_languages[respond_index]
 
     def _link_mobileraker_conf(self, context: Context) -> None:
-        if context.platform == PlatformType.K1:
+        if context.platform == PlatformType.K1 or context.is_standalone:
             # K1 has only a single moonraker instance, so we can just skip this.
+            # Standalone plugins don't need this either.
             return
 
         # Creates a link to the mobileraker config file in the moonraker config folder if it is not the master config file.
@@ -189,6 +187,9 @@ class Config:
         
 
     def _default_mobileraker_conf_path(self, context: Context) -> str:
+        if context.is_standalone:
+            return os.path.join(context.standalone_data_path, Config.CONFIG_FILE_NAME)
+        
         if len(context.printer_data_config_folder) != 0:
             return os.path.join(context.printer_data_config_folder, Config.CONFIG_FILE_NAME)
         
@@ -288,3 +289,92 @@ class Config:
             config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")
         config.set(sec, "snapshot_rotation", "0")
         config.set(sec, "ignore_filament_sensors", "")
+    
+    def _add_printer_with_user_input(self, context: Context, config: configparser.ConfigParser, write_section: List[str], printer_name: str):
+        Logger.Blank()
+        Logger.Blank()
+        Logger.Info(f"Do you want me to help you add a printer to the {Config.CONFIG_FILE_NAME} file or should I use the default settings?")
+        help = self._ask_input("y/n", "y")
+        if help.lower() == 'n':
+            Logger.Info("Using default settings for printer.")
+            self._add_printer("default", context, config, write_section)
+            return
+        Logger.Info("Okay... I will guide you through the process of adding a printer to the config file.")
+        Logger.Blank()
+        Logger.Info("Please provide the following information:")
+        defaults = {
+            "name": printer_name,
+            "moonraker_uri": "127.0.0.1",
+            "moonraker_port": str(context.moonraker_port),
+            "moonraker_api_key": "False",
+            "snapshot_rotation": "0"
+        }
+        user_input = defaults
+
+        while True:
+            Logger.Blank()
+            name = self._ask_input("Printer Name", user_input["name"])
+            moonraker_uri = self._ask_input("Moonraker URI (Without Port)", user_input["moonraker_uri"])
+            moonraker_port = self._ask_input("Moonraker Port", user_input["moonraker_port"])
+            api_key = self._ask_input("Moonraker API Key, False if none is used", user_input["moonraker_api_key"])
+            snapshot_rotation = self._ask_input("Snapshot Rotation", user_input["snapshot_rotation"])
+
+            # Prepare the configuration section
+            sec = f"printer {name}"
+            user_input = {
+                "name": name,
+                "moonraker_uri": moonraker_uri,
+                "moonraker_port": moonraker_port,
+                "moonraker_api_key": api_key,
+                "snapshot_rotation": snapshot_rotation
+            }
+
+            # Display the configuration
+            Logger.Blank()
+            Logger.Info(f"Printer Configuration for '{name}':")
+            for key, value in user_input.items():
+                Logger.Info(f"  {key}: {value}")
+
+            # Confirm or modify
+            confirm = self._ask_input("Is this configuration correct? (y/n/edit)", "y")
+            
+            if confirm.lower() == 'y':
+                # Add the section and values to the config
+                write_section.append(sec)
+                config.add_section(sec)
+                config.set(sec, "moonraker_uri", f"ws://{moonraker_uri}:{moonraker_port}/websocket")
+                config.set(sec, "moonraker_api_key", api_key)
+                config.set(sec, "snapshot_uri", f"http://{moonraker_uri}/webcam/?action=snapshot")
+                config.set(sec, "snapshot_rotation", snapshot_rotation)
+                config.set(sec, "ignore_filament_sensors", "")
+                
+                # Ask about adding another printer
+                add_more = self._ask_input("Add another printer? (y/n)", "n")
+                if add_more.lower() != "y":
+                    break
+                user_input = defaults
+            
+            elif confirm.lower() == 'edit':
+                # If user wants to edit, the loop will restart and ask for inputs again
+                continue
+            
+            else:
+                # If user doesn't confirm, restart the input process
+                continue
+
+    def _ask_input(self, hint: str, default: Optional[str]) -> str:
+        while True:
+            try:
+                if default is not None:
+                    hint += f" [Default = {default}]"
+                response = input(f"{hint}: ")
+                response = response.strip()
+                if len(response) == 0:
+                    if default is not None:
+                        return default
+                    Logger.Warn("Empty input, try again.")
+                    continue
+                
+                return response
+            except Exception as e:
+                Logger.Warn("Invalid input, try again. Logger.Error: "+str(e))

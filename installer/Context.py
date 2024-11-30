@@ -33,7 +33,6 @@ class OperationMode(Enum):
         UNINSTALL: Uninstall mode.
     """
     INSTALL = 1
-    # INSTALL_STANDALONE = 2
     UPDATE = 3
     UNINSTALL = 4
 
@@ -89,6 +88,8 @@ class Context:
 
         # Parsed from the command line args, defines how this installer should run.
         self.mode:OperationMode = OperationMode.INSTALL
+        
+        self.is_standalone:bool = False
 
 
         #
@@ -101,7 +102,7 @@ class Context:
         # This is the file name of the moonraker service we are targeting.
         self._moonraker_service_file_name:Optional[str] = None
 
-        # self.ObserverDataPath:Optional[str] = None
+        self._standalone_data_path:Optional[str] = None
 
 
         #
@@ -162,6 +163,16 @@ class Context:
             bool: True if the moonraker service file path is set, False otherwise.
         """
         return self._moonraker_service_file_name is not None and len(self._moonraker_service_file_name) > 0
+
+    @property
+    def has_standalone_data_path(self) -> bool:
+        """
+        Check if the standalone data path is set.
+
+        Returns:
+            bool: True if the standalone data path is set, False otherwise.
+        """
+        return self._standalone_data_path is not None and len(self._standalone_data_path) > 0
 
     @property
     def has_mobileraker_conf_link(self) -> bool:
@@ -337,6 +348,28 @@ class Context:
             value (str): The moonraker service file name.
         """
         self._moonraker_service_file_name = value.strip()
+
+    @property
+    def standalone_data_path(self) -> str:
+        """
+        Get the standalone data path.
+
+        Returns:
+            str: The standalone data path.
+        """
+        if self._standalone_data_path is None:
+            raise AttributeError("Standalone data path was not set.")
+        return self._standalone_data_path
+    
+    @standalone_data_path.setter
+    def standalone_data_path(self, value:str) -> None:
+        """
+        Set the standalone data path.
+
+        Args:
+            value (str): The standalone data path.
+        """
+        self._standalone_data_path = value.strip()
 
     @property
     def printer_data_folder(self) -> str:
@@ -570,6 +603,9 @@ class Context:
         Raises:
             ValueError: If the mode is INSTALL_STANDALONE and the platform is not Debian based.
         """
+        if self.is_standalone:
+            self._validate_path(self._standalone_data_path, "Required config var Standalone Data Path was not found")
+            return
         
         self._validate_path(self._moonraker_config_file_path, "Required config var Moonraker Config File Path was not found")
         self._validate_property(self._moonraker_service_file_name, "Required config var Moonraker Service File Name was not found")
@@ -580,6 +616,13 @@ class Context:
         Validates the configuration in phase three of the installation process.
         """
         error = "Required config var %s was not found"
+
+        if self.is_standalone:
+            self._validate_path(self._printer_data_logs_folder, error % "Printer Data Logs Folder")
+            self._validate_property(self._service_file_path, error % "Service File Path")
+            self._validate_property(self._moonraker_port, error % "Moonraker Port")
+            self._validate_property(self._mobileraker_conf_path, error % "Mobileraker Conf Path")
+            return
 
         self._validate_path(self._printer_data_folder, error % "Printer Data Folder")
         self._validate_path(self._printer_data_config_folder, error % "Printer Data Config Folder")
@@ -641,6 +684,9 @@ class Context:
                 elif raw_arg == "uninstall":
                     Logger.Info("Setup running in uninstall mode.")
                     self.mode = OperationMode.UNINSTALL
+                elif raw_arg == "standalone":
+                    Logger.Info("Setup running in standalone mode.")
+                    self.is_standalone = True
                 else:
                     raise AttributeError("Unknown argument found. Use install.sh -help for options.")
 

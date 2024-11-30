@@ -27,12 +27,14 @@ class Configure:
         """
         Logger.Header("Starting configuration...")
 
-        Logger.Debug(f"Moonraker Service File Name: {context.moonraker_service_file_name}")
+        if context.is_standalone is False:
+            Logger.Debug(f"Moonraker Service File Name: {context.moonraker_service_file_name}")
 
         # Get printer data root and config folder
-
-        # TODO: MR does not need a observer config file, it's only for the observer.
-        if context.platform == PlatformType.SONIC_PAD:
+        if context.is_standalone:
+            # Do nothing for standalone plugins.
+            Logger.Debug("Standalone plugin, no config setup needed.")
+        elif context.platform == PlatformType.SONIC_PAD:
             # ONLY FOR THE SONIC PAD, we know the folder setup is different.
             # The user data folder will have /mnt/UDISK/printer_config<number> where the config files are and /mnt/UDISK/printer_logs<number> for logs.
             # Use the normal folder for the config files.
@@ -78,25 +80,29 @@ class Configure:
 
         # There's not a great way to find the log path from the config file, since the only place it's located is in the systemd file.
 
-        # First, we will see if we can find a named folder relative to this folder.
-        context.printer_data_logs_folder = os.path.join(context.printer_data_folder, "logs")
-        if os.path.exists(context.printer_data_logs_folder) is False:
-            # Try an older path
-            context.printer_data_logs_folder = os.path.join(context.printer_data_folder, "klipper_logs")
+        if context.is_standalone:
+            context.printer_data_logs_folder = os.path.join(context.standalone_data_path, "logs")
+            Util.ensure_dir_exists(context.printer_data_logs_folder, context, True)
+        else:
+            # First, we will see if we can find a named folder relative to this folder.
+            context.printer_data_logs_folder = os.path.join(context.printer_data_folder, "logs")
             if os.path.exists(context.printer_data_logs_folder) is False:
-                # Try the path Creality OS uses, something like /mnt/UDISK/printer_logs<number>
-                context.printer_data_logs_folder = os.path.join(Util.parent_dir(context.printer_data_config_folder), "printer_logs")
+                # Try an older path
+                context.printer_data_logs_folder = os.path.join(context.printer_data_folder, "klipper_logs")
                 if os.path.exists(context.printer_data_logs_folder) is False:
-                    # Failed, make a folder in the printer data root.
-                    context.printer_data_logs_folder = os.path.join(context.printer_data_folder, "mobileraker-logs")
-                    # Create the folder and force the permissions so our service can write to it.
-                    Util.ensure_dir_exists(context.printer_data_logs_folder, context, True)
+                    # Try the path Creality OS uses, something like /mnt/UDISK/printer_logs<number>
+                    context.printer_data_logs_folder = os.path.join(Util.parent_dir(context.printer_data_config_folder), "printer_logs")
+                    if os.path.exists(context.printer_data_logs_folder) is False:
+                        # Failed, make a folder in the printer data root.
+                        context.printer_data_logs_folder = os.path.join(context.printer_data_folder, "mobileraker-logs")
+                        # Create the folder and force the permissions so our service can write to it.
+                        Util.ensure_dir_exists(context.printer_data_logs_folder, context, True)
 
         # Setup default moonraker port
         self._discover_moonraker_port(context)
 
         # Report
-        Logger.Info(f'Configured. Service File Path: {context.service_file_path}, Config Dir: {context.printer_data_config_folder}, Logs: {context.printer_data_logs_folder}')
+        Logger.Info(f'Configured. Service File Path: {context.service_file_path}, Config Dir: {"--" if context.is_standalone else context.printer_data_config_folder}, Logs: {context.printer_data_logs_folder}')
 
     def _discover_moonraker_port(self, context:Context):
         """
@@ -110,7 +116,7 @@ class Configure:
         """
 
         # First we try to read the port from the moonraker conf
-        if os.path.exists(context.moonraker_config_file_path):
+        if context.has_moonraker_config_file_path and os.path.exists(context.moonraker_config_file_path):
             config = configparser.ConfigParser()
             config.read(context.moonraker_config_file_path)
 
