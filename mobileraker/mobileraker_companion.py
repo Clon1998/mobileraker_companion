@@ -252,13 +252,13 @@ class MobilerakerCompanion:
             # do not skip disabled sensors, as they might have been enabled in the meantime
             last_sensor = last_sensors.get(key)
             if last_sensor is None:
-                self._logger.info('Initial filament sensor detected. Evaluating!')
+                self._logger.info('Initial filament sensor "%s" detected. Evaluating!', key)
                 return True
             if last_sensor.filament_detected != sensor.filament_detected:
-                self._logger.info('Filament sensor triggered. Evaluating!')
+                self._logger.info('Filament sensor "%s" triggered. Evaluating!', key)
                 return True
             if last_sensor.enabled != sensor.enabled:
-                self._logger.info('Filament sensor enabled/disabled. Evaluating!')
+                self._logger.info('Filament sensor "%s" enabled/disabled. Evaluating!', key)
                 return True
 
         # Time evaluation
