@@ -343,6 +343,8 @@ class MobilerakerCompanion:
             body = "state_error_body"
         elif cur_snap.print_state == "standby":
             body = "state_standby_body"
+        elif cur_snap.print_state == "cancelled":
+            body = "state_cancelled_body"
 
         if title is None or body is None:
             raise AttributeError("Body or Title are none!")
