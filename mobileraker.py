@@ -40,8 +40,8 @@ def main() -> None:
         os.path.expanduser(cmd_line_args.configfile))
 
     local_config = CompanionLocalConfig(passed_config_location)
-
-    event_loop = asyncio.get_event_loop()
+    event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(event_loop)
     fcmc = MobilerakerFcmClient(
         # 'http://127.0.0.1:8080',
         'https://mobileraker.eliteschw31n.de',
