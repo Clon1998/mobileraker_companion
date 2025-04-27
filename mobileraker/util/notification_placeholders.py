@@ -30,16 +30,19 @@ def replace_placeholders(raw: str, cfg: DeviceNotificationEntry, snap: PrinterSn
     progress = snap.print_progress_by_fileposition_relative if snap.print_state == 'printing' else None
     remaining_time_avg = snap.remaining_time_avg(eta_source)
 
+    # Get the time format based on device preferences
+    eta_format = get_eta_format(cfg, companion_config)
+
     data = {
         'printer_name': cfg.machine_name,
         'progress': f'{progress:.0%}' if progress is not None else None,
         'file': snap.filename if snap.filename is not None else 'UNKNOWN',
-        'eta': eta_formatted(eta, companion_config.eta_format),
-        'a_eta': adaptive_eta_formatted(eta, companion_config.eta_format),
-        'remaining_avg': remaining_time_avg if remaining_time_avg else '--:--',
-        'remaining_file': snap.remaining_time_by_file if snap.remaining_time_by_file else '--:--',
-        'remaining_filament': snap.remaining_time_by_filament if snap.remaining_time_by_filament else '--:--',
-        'remaining_slicer': snap.remaining_time_by_slicer if snap.remaining_time_by_slicer else '--:--',
+        'eta': eta_formatted(eta, eta_format),
+        'a_eta': adaptive_eta_formatted(eta, eta_format),
+        'remaining_avg': format_time_duration(remaining_time_avg) if remaining_time_avg else '--:--',
+        'remaining_file': format_time_duration(snap.remaining_time_by_file) if snap.remaining_time_by_file else '--:--',
+        'remaining_filament': format_time_duration(snap.remaining_time_by_filament) if snap.remaining_time_by_filament else '--:--',
+        'remaining_slicer': format_time_duration(snap.remaining_time_by_slicer) if snap.remaining_time_by_slicer else '--:--',
         'cur_layer': snap.current_layer,
         'max_layer': snap.max_layer,
     }
@@ -53,12 +56,37 @@ def replace_placeholders(raw: str, cfg: DeviceNotificationEntry, snap: PrinterSn
     return raw
 
 
+def get_eta_format(cfg: DeviceNotificationEntry, companion_config: CompanionLocalConfig) -> str:
+    """
+    Determine the ETA format based on the device's time format preference.
+    
+    Args:
+        cfg (DeviceNotificationEntry): The device notification entry with time format preference.
+        companion_config (CompanionLocalConfig): Fallback configuration.
+        
+    Returns:
+        str: The format string to use for formatting date/time.
+    """
+    # If the device has a time format preference, use it
+    if hasattr(cfg, 'time_format') and cfg.time_format:
+        if cfg.time_format == '12h':
+            return '%m/%d/%Y, %I:%M %p'
+        else:  # '24h' format
+            return '%d.%m.%Y, %H:%M:%S'
+    
+    # Otherwise fall back to the companion config
+    return companion_config.eta_format
+
+
 def adaptive_eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional[str]:
     if not eta:
         return '--'
     if eta.date() <= datetime.today().date():
-        # if today, we only return Hour:Mins:Seconds
-        return eta.strftime('%H:%M:%S')
+        # If today, show only time based on the time format preference
+        if '12h' in eta_format:
+            return eta.strftime('%I:%M %p')
+        else:
+            return eta.strftime('%H:%M:%S')
     return eta_formatted(eta, eta_format)
 
 
@@ -67,6 +95,25 @@ def eta_formatted(eta: Optional[datetime], eta_format: str) -> Optional[str]:
         return '--'
 
     return eta.strftime(eta_format)
+
+
+def format_time_duration(seconds: Optional[int]) -> str:
+    """
+    Format a duration in seconds as a human-readable string.
+    
+    Args:
+        seconds (Optional[int]): The duration in seconds.
+        
+    Returns:
+        str: The formatted duration string (HH:MM).
+    """
+    if seconds is None:
+        return '--:--'
+        
+    hours, remainder = divmod(seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    
+    return f"{hours:02d}:{minutes:02d}"
 
 
 def get_relative_date_string(date):
