@@ -32,8 +32,8 @@ The following settings are now managed through the Mobileraker app:
 |---------|-------------|----------------|
 | Language | Interface language | Settings > App > Language |
 | Time Format | 12h or 24h time display | Settings > App > Time Format |
-| Webcam Selection | Choose specific webcam for notifications | Settings > Printer > Notifications > Webcam |
-| Filament Sensor Exclusions | Ignore specific filament sensors | Settings > Printer > Notifications > Excluded Sensors |
+| Webcam Selection | Choose specific webcam for notifications | Settings > Notifications > Printer > Webcam |
+| Filament Sensor Exclusions | Ignore specific filament sensors | Settings  > Notifications > Printer > Excluded Sensors |
 
 ## Configuration Priority
 
