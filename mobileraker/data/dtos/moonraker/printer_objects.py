@@ -278,10 +278,12 @@ class GCodeMove:
 class FilamentSensor:
     def __init__(self,
                  name: str,
+                 kind: str,
                  enabled: bool = False,
                  filament_detected: bool = True,
                  ) -> None:
         self.name: str = name
+        self.kind: str = kind
         self.enabled: bool = enabled
         self.filament_detected: bool = filament_detected
 

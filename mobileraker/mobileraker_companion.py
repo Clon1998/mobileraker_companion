@@ -3,19 +3,20 @@ import asyncio
 import base64
 import logging
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 import time
 
 
 import requests
 from mobileraker.client.mobileraker_fcm_client import MobilerakerFcmClient
 from mobileraker.client.moonraker_client import MoonrakerClient
-from mobileraker.client.snapshot_client import SnapshotClient
+from mobileraker.client.webcam_snapshot_client import WebcamSnapshotClient
 from mobileraker.data.dtos.mobileraker.companion_meta_dto import CompanionMetaDataDto
 from mobileraker.data.dtos.mobileraker.companion_request_dto import ContentDto, DeviceRequestDto, FcmRequestDto, LiveActivityContentDto, NotificationContentDto, ProgressNotificationContentDto
 from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.service.data_sync_service import DataSyncService
+from mobileraker.service.webcam_manager import WebcamManager
 from mobileraker.util.configs import CompanionLocalConfig, CompanionRemoteConfig
 
 from mobileraker.util.functions import compare_version, generate_notifcation_id_from_uuid, get_software_version, is_valid_uuid, normalized_progress_interval_reached
@@ -29,12 +30,14 @@ class MobilerakerCompanion:
         It takes care of handling data updates, issuing new notifications, and updating any snapshot info
     '''
 
+    DEFAULT_WEBCAM_KEY = '_webcamMR'
+
     def __init__(
             self,
             jrpc: MoonrakerClient,
             data_sync_service: DataSyncService,
             fcm_client: MobilerakerFcmClient,
-            snapshot_client: SnapshotClient,
+            webcam_snapshot_client: WebcamSnapshotClient,
             printer_name: str,
             loop: AbstractEventLoop,
             companion_config: CompanionLocalConfig,
@@ -44,7 +47,8 @@ class MobilerakerCompanion:
         self._jrpc: MoonrakerClient = jrpc
         self._data_sync_service: DataSyncService = data_sync_service
         self._fcm_client: MobilerakerFcmClient = fcm_client
-        self._snapshot_client: SnapshotClient = snapshot_client
+        self._default_snapshot_client: WebcamSnapshotClient = webcam_snapshot_client
+        self._webcam_manager = WebcamManager(jrpc)
         self.printer_name: str = printer_name
         self.loop: AbstractEventLoop = loop
         self.companion_config: CompanionLocalConfig = companion_config
@@ -106,6 +110,9 @@ class MobilerakerCompanion:
 
         device_requests: List[DeviceRequestDto] = []
 
+        # Cache for webcam images to avoid multiple requests for the same image
+        webcam_snapshots: Dict[str, str] = {}
+
         for cfg in app_cfgs:
             if not cfg.fcm_token:
                 continue
@@ -113,6 +120,7 @@ class MobilerakerCompanion:
                 'Evaluate for machineID %s, cfg.version: %s , cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.version, cfg.snap, cfg.settings)
             notifications: List[ContentDto] = []
 
+            # Collect all notifications for this device
             state_noti = self._state_notification(cfg, snapshot)
             if state_noti is not None:
                 notifications.append(state_noti)
@@ -151,7 +159,10 @@ class MobilerakerCompanion:
                 self._logger.info('LiveActivity (%s):  %s - %s',
                                     live_activity_update.token, live_activity_update.progress, live_activity_update.eta)
 
-            filament_sensor_notifications = self._filament_sensor_notifications(cfg, snapshot)
+            # Use device-specific exclude_filament_sensors if available
+            exclude_sensors = cfg.settings.exclude_filament_sensors if hasattr(cfg.settings, 'exclude_filament_sensors') else self.exclude_sensors
+            
+            filament_sensor_notifications = self._filament_sensor_notifications(cfg, snapshot, exclude_sensors)
             if filament_sensor_notifications is not None:
                 self._logger.info('FilamentSensorNoti.size %i', len(filament_sensor_notifications))
                 notifications.extend(filament_sensor_notifications)
@@ -163,7 +174,15 @@ class MobilerakerCompanion:
                 notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None, len(filament_sensor_notifications) if filament_sensor_notifications is not None else 0, progressbar_noti is not None)
             
             if notifications:
-                # Set a webcam img to all DTOs if available
+                # Take a webcam image specific to this device's preferences
+                ascii_img = await self._take_webcam_image_for_device(webcam_snapshots, cfg)
+                if ascii_img:
+                    # Set the webcam image to all notification DTOs
+                    for notification in notifications:
+                        if isinstance(notification, NotificationContentDto):
+                            notification.image = ascii_img
+                
+                # Create device request
                 dto = DeviceRequestDto(
                     # Version 2 is used to indicate that we want to use flattened structure of awesome notifications. This is only available in 2.6.10 and later
                     version= 2 if cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0 else 1,
@@ -176,8 +195,9 @@ class MobilerakerCompanion:
             await self._update_app_snapshot(cfg, snapshot, progress_noti is not None, progressbar_noti is not None, live_activity_update is not None)
             await self._clean_up_apns(cfg, snapshot)
 
-        self._take_webcam_image(device_requests)
-        await self._push_and_clear_faulty(device_requests)
+        if device_requests:
+            await self._push_and_clear_faulty(device_requests)
+        
         self._logger.info('---- Completed Evaluations Task! ----')
 
     async def _update_meta_data(self) -> None:
@@ -540,29 +560,34 @@ class MobilerakerCompanion:
 
         return self._construct_custom_notification(cfg, cur_snap, message)
 
-    def _filament_sensor_notifications(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[List[NotificationContentDto]]:
-
+    def _filament_sensor_notifications(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, exclude_sensors:List[str]) -> Optional[List[NotificationContentDto]]:
+        """
+        Check if filament sensor notifications should be issued.
+        
+        Args:
+            cfg: The device notification configuration.
+            cur_snap: The current printer snapshot.
+            exclude_sensors: List of sensor names to exclude from notifications.
+            
+        Returns:
+            List of notification content DTOs, if any.
+        """
         # Only issue sensor notifications if the printer is printing or paused
-        if cur_snap.print_state not in ["printing", "paused"]:
-            return None
+        #if cur_snap.print_state not in ["printing", "paused"]:
+        #    return None
 
         # check if the printer has filament sensors
         if len(cur_snap.filament_sensors) == 0:
             return None
 
-        # check if new print state actually should issue a notification trough user configs
-        #TODO: Make this configurable
-        # if cur_snap.print_state not in cfg.settings.state_config:
-        #     return None
-
-        
         # Sensors KEYS that triggered a notification
         sensors_triggered: List[str] = []
 
         # Check if any of the sensors is enabled and no filament was detected before
         for key, sensor in cur_snap.filament_sensors.items():
             # Skip sensors the user wants to ignore
-            if key in self.exclude_sensors:
+            # First part is for legacy conf file support as there only the sensor name was used while the 
+            if key in exclude_sensors or f'{sensor.kind}#{sensor.name}' in exclude_sensors:
                 continue
 
             # If the sensor is not enabled, skip it
@@ -575,7 +600,6 @@ class MobilerakerCompanion:
 
         if len(sensors_triggered) == 0:
             return None
-
 
         # create a notification for each triggered sensor
         notifications: List[NotificationContentDto] = []
@@ -606,23 +630,6 @@ class MobilerakerCompanion:
             'Got M117/Custom: %s. This translated into: %s -  %s', message, title, body)
 
         return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 2), f'{cfg.machine_id}-m117', title, body)
-
-    def _take_webcam_image(self, dtos: List[DeviceRequestDto]) -> None:
-        if not self.companion_config.include_snapshot:
-            return
-        if not dtos:
-            return
-
-        img_bytes = self._snapshot_client.take_snapshot()
-        if img_bytes is None:
-            return
-
-        img = base64.b64encode(img_bytes).decode("ascii")
-
-        for dto in dtos:
-            for notification in dto.notifcations:
-                if isinstance(notification, NotificationContentDto):
-                    notification.image = img
 
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
         try:
@@ -716,3 +723,71 @@ class MobilerakerCompanion:
         except (ConnectionError, asyncio.TimeoutError)as err:
             self._logger.warning(
                 "Could not remove apns for %s, %s", machine_id, err)
+    
+    async def _take_webcam_image_for_device(self, cache: Dict[str, str], cfg: DeviceNotificationEntry) -> Optional[str]:
+        """
+        Takes a webcam snapshot for a specific device based on its webcam preferences.
+        
+        Args:
+            cfg (DeviceNotificationEntry): The device configuration
+            
+        Returns:
+            Optional[bytes]: The snapshot image as bytes if successful, or None on failure
+        """
+        
+        # Legacy support for snapshot_webcam in conf file
+        if not hasattr(cfg.settings, 'snapshot_webcam') and not self.companion_config.include_snapshot:
+            self._logger.info('Legacy config detected and disables including of webcam snapshots.')
+            return None
+        
+        #new device specific snapshot_webcam
+        if hasattr(cfg.settings, 'snapshot_webcam') and not cfg.settings.snapshot_webcam:
+            self._logger.info('Device specific snapshot_webcam is set to false. Skipping webcam snapshot.')
+            return None
+        
+        webcam_key = cfg.settings.snapshot_webcam if hasattr(cfg.settings, 'snapshot_webcam') else self.DEFAULT_WEBCAM_KEY
+        
+        if webcam_key in cache :
+            return cache[webcam_key]
+                
+        try:
+            # Get the appropriate snapshot client for this device
+            snapshot_client = await self._get_snapshot_client_for_device(webcam_key) # type: ignore
+            
+            if snapshot_client is None:
+                self._logger.warning("No snapshot client found for webcam: %s", webcam_key)
+                return None
+            # Take a snapshot
+            img_bytes = snapshot_client.capture_snapshot()
+            
+            if img_bytes:
+                img = base64.b64encode(img_bytes).decode("ascii")
+                cache[webcam_key] = img # type: ignore -> we are sure that the key is a str ant not a none
+                return img
+            return None
+        except Exception as e:
+            self._logger.error("Error taking webcam image: %s", str(e))
+            return None
+        
+    async def _get_snapshot_client_for_device(self, webcam: str) -> Optional[WebcamSnapshotClient]:
+        """
+        Get an appropriate SnapshotClient for a device based on its webcam preference.
+        
+        Args:
+            cfg (DeviceNotificationEntry): The device configuration
+            
+        Returns:
+            SnapshotClient: A snapshot client configured for the device
+        """
+
+        # Legacy support for snapshot_webcam in conf file
+        if webcam == self.DEFAULT_WEBCAM_KEY:
+            return self._default_snapshot_client
+
+        # Create a new client for this webcam
+        try:
+            # Fetch webcam data from Moonraker
+            return await self._webcam_manager.get_webcam_client(webcam)
+
+        except Exception as e:
+            self._logger.error("Error creating snapshot client: %s", str(e))

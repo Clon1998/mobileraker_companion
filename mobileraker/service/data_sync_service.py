@@ -129,7 +129,7 @@ class DataSyncService:
                     continue
                 
                 #check if the sensor is already in the list, if not create a default one and call updateWith
-                sensor = self.filament_sensors[object_name] if object_name in self.filament_sensors else FilamentSensor(name= object_name)
+                sensor = self.filament_sensors[object_name] if object_name in self.filament_sensors else FilamentSensor(name= object_name, kind = object_identifier)
                 self.filament_sensors[object_name] = sensor.updateWith(object_data)
 
             elif rawObjectKey == 'gcode_macro TIMELAPSE_TAKE_FRAME':

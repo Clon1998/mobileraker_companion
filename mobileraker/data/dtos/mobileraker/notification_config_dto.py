@@ -42,6 +42,7 @@ class DeviceNotificationEntry:
         self.machine_id: str  # Flutter: machine.uuid
         self.machine_name: str
         self.language: str = 'en'
+        self.time_format: str = '24h'  # New field for time format
         self.version: Optional[str] = None # App version
         self.settings: NotificationSettings
         self.snap: NotificationSnap
@@ -63,6 +64,10 @@ class DeviceNotificationEntry:
         cfg.apns = APNs.fromJSON(json['apns']) if 'apns' in json and json['apns'] else None
         cfg.version = json['version'] if 'version' in json else None
 
+        if 'timeFormat' in json:
+            cfg.time_format = json['timeFormat']
+        else:
+            delattr(cfg, 'time_format')  # Remove if not set
 
         return cfg
 
@@ -80,28 +85,6 @@ class DeviceNotificationEntry:
     def is_ios(self) -> bool:
         return self.version is not None and 'ios' in self.version
 
-    # def __eq__(self, o: object) -> bool:
-    #     if not isinstance(o, CompanionRequestDto):
-    #         return False
-
-    #     return self.print_state == o.print_state and \
-    #         self.tokens == o.tokens and self.printer_identifier == o.printer_identifier and \
-    #         self.filename == o.filename and self.progress == o.progress and \
-    #         self.printing_duration == o.printing_duration
-
-
-#     "settings": {
-#         "created": "2022-11-25T23:03:47.656261",
-#         "lastModified": "2022-11-26T19:46:59.083595",
-#         "progress": 0.05,
-#         "states": [
-#             "paused",
-#             "complete",
-#             "error",
-#             "printing",
-#             "standby"
-#         ]
-#     }
 class NotificationSettings:
     def __init__(self):
         self.created: str
@@ -110,6 +93,9 @@ class NotificationSettings:
         self.state_config: List[str] = []
         self.android_progressbar: bool = True
         self.eta_sources: List[str] = ['filament','slicer']
+        self.snapshot_webcam: Optional[str] = None  # New field for webcam UID 
+        self.exclude_filament_sensors: List[str] = []  # New field for excluded filament sensors -> cant set it as default to ensure I can detect if its set or not
+        self.inherit_global_settings: bool = True  # New field for inheriting global settings
 
     @staticmethod
     def fromJSON(json: Dict[str, Any]) -> 'NotificationSettings':
@@ -121,14 +107,28 @@ class NotificationSettings:
         cfg.progress_config = min(
             50, round(prog_float * 100)) if prog_float > 0 else -1
         cfg.state_config = json['states']
+        
+        # Get the Android progressbar preference (backwards compatible)
         if 'androidProgressbar' in json:
             cfg.android_progressbar = json['androidProgressbar']
         elif 'android_progressbar' in json:
             cfg.android_progressbar = json['android_progressbar']
 
+        # Parse ETA sources
         if 'etaSources' in json:
             cfg.eta_sources = json['etaSources']
-
+            
+        # Parse new fields
+        if 'snapshotWebcam' in json:
+            cfg.snapshot_webcam = json['snapshotWebcam']
+        else:
+            delattr(cfg, 'snapshot_webcam')  # Remove if not set
+        if 'excludeFilamentSensors' in json:
+            cfg.exclude_filament_sensors = json['excludeFilamentSensors']
+        else:
+            delattr(cfg, 'exclude_filament_sensors')        
+        
+        cfg.inherit_global_settings = json.get('inheritGlobalSettings', True)
         return cfg
 
     def __str__(self):
@@ -136,6 +136,7 @@ class NotificationSettings:
             type(self).__name__,
             ', '.join('%s=%s' % item for item in vars(self).items())
         )
+
 
 #     "snap": {
 #        "progress":0.0,
