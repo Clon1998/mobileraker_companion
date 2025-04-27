@@ -176,33 +176,34 @@ The Mobileraker Companion is designed to support multiple printers. If you are u
 Alternatively, you can manually edit the `mobileraker.conf` file to add a new `[printer <Name>]` section for each printer. Refer to the following section for detailed information about the configuration format.
 
 # Companion - Config
-By default, you don't need to create a config file. However, if you want to use multiple printers with a single Companion instance, enforce logins via Moonraker, or modify the notification behavior, you can customize the configuration. Below is an overview of the available sections and configurations
+
+The Companion is designed to work with minimal configuration, prioritizing settings from the Mobileraker app when available. For a detailed guide on the new configuration system, please see [Configuration Updates](docs/Configuration_Updates.md).
+
+## Configuration Sources
+
+Settings are now applied in the following order of priority:
+
+1. **Device-specific settings** from the Mobileraker app
+2. **Global app settings** (if device inherits global settings)
+3. **Configuration file** (fallback for older app versions)
+4. **Default values**
+
+## Configuration File
+
+While most settings can now be managed through the app, you can still use the configuration file for basic setup. The configuration file supports the following sections and options:
 
 ```properties
 [general]
-language: en 
-# !!! DEPRECATED. The app now syncs the app's language to the companion
-# one of the supported languages defined in i18n.py#languages (de,en,...)
-# !!! For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!
-# Default: en
 timezone: Europe/Berlin 
 # correct timezone e.g. Europe/Berlin for Berlin time or US/Central. 
 # For more values see https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568
 # Default: Tries to use system timezone
 # Optional
-eta_format: %%d.%%m.%%Y, %%H:%%M:%%S
-# Format used for eta and adaptive_eta placeholder variables
-# For available options see https://strftime.org/
-# Note that you will have to escape the % char by using a 2nd one e.g.: %d/%m/%Y -> %%d/%%m/%%Y
-# Default: %%d.%%m.%%Y, %%H:%%M:%%S
-# Optional
 include_snapshot: True
-# !! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!
+# !! SUPPORTER ONLY - This feature requires being a supporter of Mobileraker as of now!
 # Include a snapshot of the webcam in any print status/progress update notifications
 # Default: True
 # Optional
-
-
 
 # Add a [printer ...] section for every printer you want to add
 [printer <NAME OF YOUR PRINTER: optional>]
@@ -214,62 +215,60 @@ moonraker_api_key: False
 # Moonraker API key if force_logins or trusted clients is active!
 # Default value: False
 # Optional
-snapshot_uri: http://127.0.0.1/webcam/?action=snapshot
-# !! SUPPORTER ONLY - This feature requires beeing a supporter of Mobileraker as of now!
-# The ABSOLUT url to the webcam, the companion should make a screenshot of. 
-# Default: 
-# Optional
-snapshot_rotation: 0
-# The rotation applied to the image. Valid values : 0, 90, 180, 270
-# Default: 0
-# Optional
-ignore_filament_sensors:
-# Comma separated list of filament sensors to ignore, ignored filament sensors do not trigger 
-# a notification if they are triggered. This is useful if you have a filament sensor that is used
-# in a MMU setup like ERCF.
-# IMPORTANT, do not include the sensor type. E.g. if your sensor is configured
-# like: [filament_switch_sensor printhead_sensor] add `printhead_sensor` to the list.
-# Default: empty
-# Optional
-
 ```
+
+## Settings Managed in the App
+
+The following settings are now managed through the Mobileraker app (v2.8.8+) rather than the configuration file:
+
+- **Language**: Set in app Settings > App > Language
+- **Time Format**: Choose between 12h and 24h formats
+- **Webcam Selection**: Select from webcams configured in Moonraker
+- **Filament Sensor Exclusions**: Configure which sensors to ignore per device
+
+## Backward Compatibility
+
+For compatibility with older app versions, the following configuration options are still supported in the configuration file, but will be overridden by app settings when available:
+
+```properties
+[general]
+language: en 
+# !!! DEPRECATED. The app now syncs the app's language to the companion
+# For users from the UK: entering 'uk' will resolve to Ukrainian language, not English. Use 'en' for English!
+# Default: en
+eta_format: %%d.%%m.%%Y, %%H:%%M:%%S
+# !!! DEPRECATED. Now derived from the time format preference in the app
+# Format used for eta and adaptive_eta placeholder variables
+# Default: %%d.%%m.%%Y, %%H:%%M:%%S
+
+[printer <NAME>]
+snapshot_uri: http://127.0.0.1/webcam/?action=snapshot
+# !!! DEPRECATED. Now uses webcam selection from app with Moonraker webcam API
+# The ABSOLUTE url to the webcam for snapshots
+snapshot_rotation: 0
+# !!! DEPRECATED. Now uses rotation from webcam configuration in Moonraker
+# Valid values: 0, 90, 180, 270
+# Default: 0
+ignore_filament_sensors:
+# !!! DEPRECATED. Now configured per device in the Mobileraker app
+# Comma separated list of filament sensors to ignore
+```
+
+The Companion searches for a `Mobileraker.conf` file in the following locations (in order of precedence):
+1. Path provided via `-c` parameter
+2. `~/Mobileraker.conf`
+3. `<mobileraker_companion DIR>/mobileraker.conf`
+4. `~/printer_data/config/mobileraker.conf`
+5. `~/klipper_config/mobileraker.conf`
+
 > [!IMPORTANT]
 > Please note that the configuration entry for the printer's Moonraker endpoint is `moonraker_uri`, not `moonraker_url`. It's a common mistake to confuse these two. Ensure you're using the correct key in your configuration.
 
-
-The Companion searches for a `Mobileraker.conf` file in the following locations (in order of precedence):
-1. `~/Mobileraker.conf`
-2. `<mobileraker_companion DIR>/mobileraker.conf`
-3. `~/printer_data/config/mobileraker.conf`
-4. `~/klipper_config/mobileraker.conf`
-
-
-A single Companion instance can support multiple printers. To configure multiple printers, add more `[printer ...]` sections to your config. Here's an example of a multi-printer config:
-Example multi-printer config: 
-```properties
-[printer V2.1111]
-moonraker_uri: ws://127.0.0.1:7125/websocket
-# Define the uri to the moonraker instance.
-# Default value: ws://127.0.0.1:7125/websocket
-moonraker_api_key: False
-# Moonraker API key if force_logins or trusted clients is active!
-
-[printer Ratty]
-moonraker_uri: ws://ratrig.home:7125/websocket
-# Define the uri to the moonraker instance.
-# Default value: ws://127.0.0.1:7125/websocket
-moonraker_api_key: False
-# Moonraker API key if force_logins is active!
-ignore_filament_sensors: printhead_sensor, sensor_name2
-```
-
 > [!NOTE]
->   Please restart the system service to ensure the new config values are used. 
-> You can do this by running the following terminal command:  
+> Please restart the system service after editing the configuration file:  
 > ```bash
 > sudo systemctl restart mobileraker.service
 > ```
-
 
 # Moonraker - Update manager
 In order to get moonrakers update manager working with the companion add the following section to your `moonraker.conf`. 
