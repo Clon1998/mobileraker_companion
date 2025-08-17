@@ -227,6 +227,8 @@ The following settings are now managed through the Mobileraker app (v2.8.8+) rat
 - **Filament Sensor Exclusions**: Configure which sensors to ignore per device
 
 ## Backward Compatibility
+> [!WARNING]
+> This section describes how the configuration of notifications worked before v0.5.0. If you're using mobileraker_companion v0.5.0+, please refer to the [in-app settings](#settings-managed-in-the-app).
 
 For compatibility with older app versions, the following configuration options are still supported in the configuration file, but will be overridden by app settings when available:
 
@@ -326,6 +328,9 @@ This visual representation illustrates the intricate architecture, showcasing ho
 
 
 # Changelog
+
+## [v0.5.0] - 2024-04-27
+- All notification-related settings were moved out of a config file and can now be configured directly in the mobileraker app.
 
 ## [v0.4.0] - 2023-08-26
 
