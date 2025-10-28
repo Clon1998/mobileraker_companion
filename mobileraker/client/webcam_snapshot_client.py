@@ -96,7 +96,7 @@ class WebcamSnapshotClient:
             if self.flip_vertical:
                 image = ImageOps.flip(image)
             if self.rotation:
-                image = image.rotate(self.rotation)
+                image = image.rotate(-self.rotation)
                 
             # Convert to JPEG
             buffered = BytesIO()
