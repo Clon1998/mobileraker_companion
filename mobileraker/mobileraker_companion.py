@@ -16,6 +16,7 @@ from mobileraker.data.dtos.mobileraker.companion_request_dto import ContentDto, 
 from mobileraker.data.dtos.mobileraker.notification_config_dto import DeviceNotificationEntry
 from mobileraker.data.dtos.moonraker.printer_snapshot import PrinterSnapshot
 from mobileraker.service.data_sync_service import DataSyncService
+from mobileraker.service.notification_evaluator import NotificationEvaluator
 from mobileraker.service.webcam_manager import WebcamManager
 from mobileraker.util.configs import CompanionLocalConfig, CompanionRemoteConfig
 
@@ -61,6 +62,7 @@ class MobilerakerCompanion:
         self._last_snapshot: Optional[PrinterSnapshot] = None
         self._last_apns_message: Optional[int] = None
         self._evaulate_noti_lock: Lock = Lock()
+        self._notification_evaluator = NotificationEvaluator(companion_config, self.remote_config)
 
         self._logger.info('MobilerakerCompanion client created for %s, it will ignore the following sensors: %s',
                           printer_name, exclude_sensors)
@@ -118,67 +120,49 @@ class MobilerakerCompanion:
                 continue
             self._logger.info(
                 'Evaluate for machineID %s, cfg.version: %s , cfg.snap: %s, cfg.settings: %s', cfg.machine_id, cfg.version, cfg.snap, cfg.settings)
-            notifications: List[ContentDto] = []
-
-            # Collect all notifications for this device
-            state_noti = self._state_notification(cfg, snapshot)
-            if state_noti is not None:
-                notifications.append(state_noti)
-                self._logger.info('StateNoti: %s - %s',
-                                    state_noti.title, state_noti.body)
-
-            progress_noti = self._progress_notification(cfg, snapshot)
-            if progress_noti is not None:
-                notifications.append(progress_noti)
-                self._logger.info('ProgressTextNoti: %s - %s',
-                                    progress_noti.title, progress_noti.body)
-                
-            progressbar_noti = self._progressbar_notification(cfg, snapshot)
-            if progressbar_noti is not None:
-                notifications.append(progressbar_noti)
-                self._logger.info('ProgressBarNoti: %s - %s',
-                                    progressbar_noti.title, progressbar_noti.body)
-
-            m117_noti = self._custom_notification(cfg, snapshot, True)
-            if m117_noti is not None:
-                notifications.append(m117_noti)
-                self._logger.info('M117Noti: %s - %s',
-                                    m117_noti.title, m117_noti.body)
-
-            gcode_response_noti = self._custom_notification(
-                cfg, snapshot, False)
-            if gcode_response_noti is not None:
-                notifications.append(gcode_response_noti)
-                self._logger.info('GCodeResponseNoti: %s - %s',
-                                    gcode_response_noti.title, gcode_response_noti.body)
-
-            live_activity_update = self._live_activity_update(
-                cfg, snapshot)
-            if live_activity_update is not None:
-                notifications.append(live_activity_update)
-                self._logger.info('LiveActivity (%s):  %s - %s',
-                                    live_activity_update.token, live_activity_update.progress, live_activity_update.eta)
 
             # Use device-specific exclude_filament_sensors if available
             exclude_sensors = cfg.settings.exclude_filament_sensors if hasattr(cfg.settings, 'exclude_filament_sensors') else self.exclude_sensors
             
-            filament_sensor_notifications = self._filament_sensor_notifications(cfg, snapshot, exclude_sensors)
-            if filament_sensor_notifications is not None:
-                self._logger.info('FilamentSensorNoti.size %i', len(filament_sensor_notifications))
-                notifications.extend(filament_sensor_notifications)
+            # Evaluate all notifications for this device
+            result = self._notification_evaluator.evaluate_all_notifications_for_device(
+                cfg, snapshot, self._last_snapshot, exclude_sensors
+            )
 
-            self._logger.debug('Notifications for %s: %s',
-                                cfg.fcm_token, notifications)
+            # Handle live activity side effect
+            if result.has_live_activity:
+                self._last_apns_message = time.monotonic_ns()
 
-            self._logger.info('%i Notifications for machineID: %s: state: %s, proggress(text): %s, M117 %s, GcodeResponse: %s, LiveActivity: %s, FilamentSensor: %i, progressbar(android): %s', len(
-                notifications), cfg.machine_id, state_noti is not None, progress_noti is not None, m117_noti is not None, gcode_response_noti is not None, live_activity_update is not None, len(filament_sensor_notifications) if filament_sensor_notifications is not None else 0, progressbar_noti is not None)
+            # Log notifications using isinstance() for clean type checking
+            self._logger.info('%i notifications generated for machineID: %s', len(result.notifications), cfg.machine_id)
             
-            if notifications:
+            # Debug logging with proper type checking
+            if result.notifications:
+                notification_types = []
+                for notification in result.notifications:
+                    if isinstance(notification, LiveActivityContentDto):
+                        notification_types.append('liveActivity')
+                        self._logger.info('LiveActivity notification: progress=%s, eta=%s', 
+                                         notification.progress, notification.eta)
+                    elif isinstance(notification, ProgressNotificationContentDto):
+                        notification_types.append('progressBar')
+                        self._logger.info('ProgressBar notification: %s - %s (progress: %s%%)', 
+                                         notification.title, notification.body, notification.progress)
+                    elif isinstance(notification, NotificationContentDto):
+                        # Determine type from channel for logging
+                        noti_type = notification.channel.split('-')[-1] if '-' in notification.channel else 'unknown'
+                        notification_types.append(noti_type)
+                        self._logger.info('%s notification: %s - %s', noti_type, 
+                                         notification.title, notification.body)
+                
+                self._logger.info('Notification types: %s', ', '.join(notification_types))
+            
+            if result.notifications:
                 # Take a webcam image specific to this device's preferences
                 ascii_img = await self._take_webcam_image_for_device(webcam_snapshots, cfg)
                 if ascii_img:
                     # Set the webcam image to all notification DTOs
-                    for notification in notifications:
+                    for notification in result.notifications:
                         if isinstance(notification, NotificationContentDto):
                             notification.image = ascii_img
                 
@@ -188,11 +172,11 @@ class MobilerakerCompanion:
                     version= 2 if cfg.version is not None and compare_version(cfg.version, "2.6.10") >= 0 else 1,
                     printer_id=cfg.machine_id,
                     token=cfg.fcm_token,
-                    notifcations=notifications
+                    notifcations=result.notifications
                 )
                 device_requests.append(dto)
             
-            await self._update_app_snapshot(cfg, snapshot, progress_noti is not None, progressbar_noti is not None, live_activity_update is not None)
+            await self._update_app_snapshot(cfg, snapshot, result.has_progress_notification, result.has_progressbar_notification, result.has_live_activity)
             await self._clean_up_apns(cfg, snapshot)
 
         if device_requests:
@@ -330,306 +314,6 @@ class MobilerakerCompanion:
             self._logger.warning(
                 "Could not remove old fcm cfg for %s, %s", machine_id, err)
 
-    def _state_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[NotificationContentDto]:
-
-        # check if we even need to issue a new notification!
-        if cfg.snap.state == cur_snap.print_state:
-            return None
-
-        # only allow notifications of type error for the state transition printing -> error
-        if cfg.snap.state != "printing" and cur_snap.print_state == "error":
-            return None
-
-        # check if new print state actually should issue a notification trough user configs
-        if cur_snap.print_state not in cfg.settings.state_config:
-            return None
-                
-        # Ignore paused state caused by timelapse plugin
-        if cur_snap.is_timelapse_pause:
-            return None
-
-        # collect title and body to translate it
-        title = translate_replace_placeholders(
-            'state_title', cfg, cur_snap, self.companion_config)
-        body = None
-        if cur_snap.print_state == "printing":
-            # Transitions from paused to printing should be resumed
-            body = "state_resumed_body" if cfg.snap.state == "paused" else "state_printing_body"
-        elif cur_snap.print_state == "paused":
-            body = "state_paused_body"
-        elif cur_snap.print_state == "complete":
-            body = "state_completed_body"
-        elif cur_snap.print_state == "error":
-            body = "state_error_body"
-        elif cur_snap.print_state == "standby":
-            body = "state_standby_body"
-        elif cur_snap.print_state == "cancelled":
-            body = "state_cancelled_body"
-
-        if title is None or body is None:
-            raise AttributeError("Body or Title are none!")
-
-        body = translate_replace_placeholders(
-            body, cfg, cur_snap, self.companion_config)
-        return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 0), f'{cfg.machine_id}-statusUpdates', title, body)
-
-    def _progress_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[Union[NotificationContentDto, ProgressNotificationContentDto]]:
-        """
-        Generates a progress notification based on the given configuration and current printer snapshot.
-
-        Args:
-            cfg (DeviceNotificationEntry): The device notification configuration.
-            cur_snap (PrinterSnapshot): The current printer snapshot.
-
-        Returns:
-            Optional[ContentDto]: The generated progress notification content, or None if no notification should be issued.
-        """
-        # If progress notifications are disabled, skip it!
-        if cfg.settings.progress_config == -1:
-            return None
-        
-        # only issue new progress notifications if the printer is printing, or paused
-        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
-        if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
-            return None
-
-        self._logger.info(
-            'ProgressNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s',
-            cur_snap.progress,
-            cfg.snap.progress,
-            cur_snap.progress - cfg.snap.progress,
-            max(self.remote_config.increments, cfg.settings.progress_config),
-            normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(
-                self.remote_config.increments, cfg.settings.progress_config))
-        )
-
-        # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
-        if (cfg.snap.state in ["printing", "paused"]
-                    and not normalized_progress_interval_reached(cfg.snap.progress, cur_snap.progress, max(self.remote_config.increments, cfg.settings.progress_config))
-                ):
-            return None
-
-        nid = generate_notifcation_id_from_uuid(cfg.machine_id, 1)
-        channel = f'{cfg.machine_id}-progressUpdates'
-        title = translate_replace_placeholders(
-            'print_progress_title', cfg, cur_snap, self.companion_config)
-        body = translate_replace_placeholders(
-            'print_progress_body', cfg, cur_snap, self.companion_config)
-
-        return NotificationContentDto(nid, channel, title, body)
-        
-
-    def _progressbar_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[Union[NotificationContentDto, ProgressNotificationContentDto]]:
-        """
-        Generates a progressbar notification (Android) based on the given configuration and current printer snapshot.
-
-        Args:
-            cfg (DeviceNotificationEntry): The device notification configuration.
-            cur_snap (PrinterSnapshot): The current printer snapshot.
-
-        Returns:
-            Optional[ContentDto]: The generated progress notification content, or None if no notification should be issued.
-        """
-        # If progressbar notifications are disabled, skip it!
-        if not cfg.settings.android_progressbar:
-            return None
-        
-        # If device is not an android device, skip it!
-        if not cfg.is_android:
-            return None
-
-        # If version is below 2.6.10, skip it!
-        if cfg.version is None or compare_version(cfg.version, "2.6.10") < 0:
-            return None
-
-        # only issue new progress notifications if the printer is printing, or paused
-        # also skip if progress is at 100 since this notification is handled via the print state transition from printing to completed
-        if cur_snap.print_state not in ["printing", "paused"] or cur_snap.progress is None or cur_snap.progress == 100:
-            return None
-
-        perc_interval_reached = normalized_progress_interval_reached(cfg.snap.progress_progressbar, cur_snap.progress, self.remote_config.increments)
-        time_interval_reached = (datetime.now() - cfg.snap.last_progress_progressbar).seconds >= self.remote_config.interval and cur_snap.print_state in ["printing", "paused"]
-
-        self._logger.info(
-            'PBarNoti preChecks: cfg.progress.config: %i - %i = %i < %i RESULT: %s. TimeInterval: %s',
-            cur_snap.progress,
-            cfg.snap.progress_progressbar,
-            cur_snap.progress - cfg.snap.progress_progressbar,
-            max(self.remote_config.increments, cfg.settings.progress_config),
-            perc_interval_reached,
-            time_interval_reached,
-        )
-
-        # ensure the progress threshhold of the user's cfg is reached. If the cfg.snap is not yet printing also issue a notification
-        if (cfg.snap.state in ["printing", "paused"]
-                    and not perc_interval_reached and not time_interval_reached
-                ):
-            return None
-
-        nid = generate_notifcation_id_from_uuid(cfg.machine_id, 4)
-        channel = f'{cfg.machine_id}-progressUpdates' if cfg.version is None or compare_version(cfg.version, "2.7.2") < 0 else f'{cfg.machine_id}-progressBarUpdates'
-        title = translate_replace_placeholders(
-            'print_progress_title', cfg, cur_snap, self.companion_config)
-        body = translate_replace_placeholders(
-            'print_progress_body', cfg, cur_snap, self.companion_config)
-
-        return ProgressNotificationContentDto(cur_snap.progress, nid, channel, title, body)
-        
-    def _live_activity_update(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot) -> Optional[LiveActivityContentDto]:
-        # If uuid is none or empty returm
-        if cfg.apns is None or not cfg.apns.liveActivity:
-            return None
-
-        if cur_snap.progress is None:
-            return None
-
-        self._logger.info(
-            'LiveActivityUpdate preChecks passed'
-        )
-
-
-        # Calculate the eta delta based on the estimated time of the current file or 15 minutes (whichever is higher)
-        eta_delta = max(15, cur_snap.eta_window) if cur_snap.eta_window is not None else 15
-
-        last_remaining_time = self._last_snapshot.remaining_time_avg(cfg.settings.eta_sources) if self._last_snapshot is not None else None
-        cur_remaining_time = cur_snap.remaining_time_avg(cfg.settings.eta_sources)
-
-
-        eta_update = last_remaining_time is None and cur_remaining_time is not None or last_remaining_time is not None and cur_remaining_time is not None and \
-                    abs(last_remaining_time - cur_remaining_time) > eta_delta
-
-        perc_interval_reached = normalized_progress_interval_reached(cfg.snap.progress_live_activity, cur_snap.progress, self.remote_config.increments)
-        time_interval_reached = (datetime.now() - cfg.snap.last_progress_live_activity).seconds >= self.remote_config.interval and cur_snap.print_state in ["printing", "paused"]
-
-        # The live activity can be updted more frequent. Max however in 5 percent steps or if there was a state change
-        if not perc_interval_reached and cfg.snap.state == cur_snap.print_state and not eta_update and not time_interval_reached:
-            return None
-            
-
-        self._logger.info(
-            'LiveActivityUpdate passed. perc_interval_reached: %s, time_interval_reached: %s, eta_update: %s',
-            perc_interval_reached,
-            time_interval_reached,
-            eta_update,
-        )
-
-        # Set the last apns message time to now
-        self._last_apns_message = time.monotonic_ns()
-        
-        remote_event = "update" if cur_snap.print_state in ["printing", "paused"] else "end"
-
-        return LiveActivityContentDto(
-            remote_event,
-            cfg.apns.liveActivity,
-            cur_snap.progress,
-            cur_snap.calc_eta_seconds_utc(cfg.settings.eta_sources),
-            cur_snap.print_state,
-            cur_snap.filename,
-            )
-
-    def _custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, is_m117: bool) -> Optional[NotificationContentDto]:
-        """
-        Check if a custom notification should be issued.
-        Args:
-            cfg: The device notification configuration.
-            cur_snap: The current printer snapshot.
-            is_m117: Whether the notification is for an M117 message.
-
-        Returns:
-            The notification content, if any.
-        """
-
-        candidate = cur_snap.m117 if is_m117 else cur_snap.gcode_response
-        prefix = '$MR$:' if is_m117 else 'MR_NOTIFY:'
-
-        if not candidate:
-            return None
-
-        if not candidate.startswith(prefix):
-            return None
-
-        message = candidate[len(prefix):]
-        if not message:
-            return None
-
-        # Check if this is a new notification
-        if is_m117 and cfg.snap.m117 == cur_snap.m117_hash:
-            return None
-        elif not is_m117 and cfg.snap.gcode_response == cur_snap.gcode_response_hash:
-            return None
-
-        return self._construct_custom_notification(cfg, cur_snap, message)
-
-    def _filament_sensor_notifications(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, exclude_sensors:List[str]) -> Optional[List[NotificationContentDto]]:
-        """
-        Check if filament sensor notifications should be issued.
-        
-        Args:
-            cfg: The device notification configuration.
-            cur_snap: The current printer snapshot.
-            exclude_sensors: List of sensor names to exclude from notifications.
-            
-        Returns:
-            List of notification content DTOs, if any.
-        """
-        # Only issue sensor notifications if the printer is printing or paused
-        #if cur_snap.print_state not in ["printing", "paused"]:
-        #    return None
-
-        # check if the printer has filament sensors
-        if len(cur_snap.filament_sensors) == 0:
-            return None
-
-        # Sensors KEYS that triggered a notification
-        sensors_triggered: List[str] = []
-
-        # Check if any of the sensors is enabled and no filament was detected before
-        for key, sensor in cur_snap.filament_sensors.items():
-            # Skip sensors the user wants to ignore
-            # First part is for legacy conf file support as there only the sensor name was used while the 
-            if key in exclude_sensors or f'{sensor.kind}#{sensor.name}' in exclude_sensors:
-                continue
-
-            # If the sensor is not enabled, skip it
-            if not sensor.enabled:
-                continue
-            
-            # If sensor detected no filament and no notification was issued before, add it to the list
-            if not sensor.filament_detected and key not in cfg.snap.filament_sensors:
-                sensors_triggered.append(key)
-
-        if len(sensors_triggered) == 0:
-            return None
-
-        # create a notification for each triggered sensor
-        notifications: List[NotificationContentDto] = []
-        for key in sensors_triggered:
-            sensor = cur_snap.filament_sensors[key] 
-            title = translate_replace_placeholders(
-            'filament_sensor_triggered_title', cfg, cur_snap, self.companion_config, {'$sensor': sensor.name})
-            
-            body = translate_replace_placeholders(
-            'filament_sensor_triggered_body', cfg, cur_snap, self.companion_config, {'$sensor': sensor.name})
-            notifications.append(NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 3), f'{cfg.machine_id}-filamentSensor', title, body))
-
-        return notifications
-
-    def _construct_custom_notification(self, cfg: DeviceNotificationEntry, cur_snap: PrinterSnapshot, message: str) -> Optional[NotificationContentDto]:
-        split = message.split('|')
-
-        has_title = (len(split) == 2)
-
-        title = split[0].strip() if has_title else translate_implicit(
-            cfg, self.companion_config, 'm117_custom_title')
-        title = replace_placeholders(
-            title, cfg, cur_snap, self.companion_config)
-        body = (split[1] if has_title else split[0]).strip()
-        body = replace_placeholders(body, cfg, cur_snap, self.companion_config)
-
-        self._logger.info(
-            'Got M117/Custom: %s. This translated into: %s -  %s', message, title, body)
-
-        return NotificationContentDto(generate_notifcation_id_from_uuid(cfg.machine_id, 2), f'{cfg.machine_id}-m117', title, body)
 
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
         try:
