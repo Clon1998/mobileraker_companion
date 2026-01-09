@@ -1,6 +1,7 @@
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from urllib.parse import urlsplit
+import time
 
 from mobileraker.client.moonraker_client import MoonrakerClient
 from mobileraker.client.webcam_snapshot_client import WebcamSnapshotClient
@@ -15,7 +16,9 @@ class WebcamManager:
         self._jrpc = jrpc
         self._logger = logging.getLogger('mobileraker.webcam')
         # Cache stores tuple of (WebcamSnapshotClient, timestamp)
-        self._client_cache: Dict[str, WebcamSnapshotClient] = {}
+        self._client_cache: Dict[str, Tuple[WebcamSnapshotClient, float]] = {}
+        # Cache time-to-live in seconds (1 minute)
+        self._CACHE_TTL = 60
         
         # Register for webcam configuration changes
         self._jrpc.register_method_listener('notify_webcams_changed', self.clear_cache)
@@ -33,7 +36,13 @@ class WebcamManager:
         """
         # Check if we have this client in cache and it's not expired
         if webcam_uid in self._client_cache:
-            return self._client_cache[webcam_uid]
+            client, ts = self._client_cache[webcam_uid]
+            if time.time() - ts < self._CACHE_TTL:
+                return client
+            else:
+                # expired
+                del self._client_cache[webcam_uid]
+                self._logger.debug("Cached webcam client for %s expired and was removed", webcam_uid)
 
         try:
             # Fetch webcam data from Moonraker
@@ -60,7 +69,7 @@ class WebcamManager:
             client = WebcamSnapshotClient(webcam_data, base_url=base_url)
             
             # Cache this client with current timestamp
-            self._client_cache[webcam_uid] = client
+            self._client_cache[webcam_uid] = (client, time.time())
             self._logger.info("Successfully fetched and cached webcam client for: %s", webcam_data.name)
             return client
             
