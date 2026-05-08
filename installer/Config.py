@@ -145,8 +145,8 @@ class Config:
         return available_languages[respond_index]
 
     def _link_mobileraker_conf(self, context: Context) -> None:
-        if context.platform == PlatformType.K1 or context.is_standalone:
-            # K1 has only a single moonraker instance, so we can just skip this.
+        if context.platform in (PlatformType.K1, PlatformType.K2) or context.is_standalone:
+            # K1 / K2 have only a single moonraker instance, so we can just skip this.
             # Standalone plugins don't need this either.
             return
 
@@ -162,6 +162,8 @@ class Config:
             return self._discover_mobileraker_conf_path_for_native(context)
         elif context.platform == PlatformType.K1:
             return self._discover_mobileraker_conf_path_for_k1(context)
+        elif context.platform == PlatformType.K2:
+            return self._discover_mobileraker_conf_path_for_k2(context)
         elif context.platform == PlatformType.SONIC_PAD:
             return self._discover_mobileraker_conf_path_for_sonic_pad(context)
         raise NotImplementedError(f"Config discovery is not supported for Platform type {context.platform} yet.")
@@ -176,9 +178,13 @@ class Config:
 
         # If we didn't find any service files, we assume it is a new install and we should create the file.
         return self._default_mobileraker_conf_path(context)
-    
+
     def _discover_mobileraker_conf_path_for_k1(self, context: Context) -> str:
         # If we are on a K1, there should always only be a single moonraker instance, so we can just use the default path.
+        return self._default_mobileraker_conf_path(context)
+
+    def _discover_mobileraker_conf_path_for_k2(self, context: Context) -> str:
+        # The K2 / K2 Pro has a single moonraker instance (same as K1), so use the default path.
         return self._default_mobileraker_conf_path(context)
 
     def _discover_mobileraker_conf_path_for_sonic_pad(self, context: Context) -> str:
@@ -283,7 +289,8 @@ class Config:
         config.add_section(sec)
         config.set(sec, "moonraker_uri", f"ws://127.0.0.1:{context.moonraker_port}/websocket")
         config.set(sec, "moonraker_api_key", "False")
-        if context.platform == PlatformType.K1:
+        if context.platform in (PlatformType.K1, PlatformType.K2):
+            # K1 and K2 both proxy the webcam stream through nginx on port 4408.
             config.set(sec, "snapshot_uri", "http://127.0.0.1:4408/webcam/?action=snapshot")
         else:
             config.set(sec, "snapshot_uri", "http://127.0.0.1/webcam/?action=snapshot")

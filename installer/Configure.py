@@ -34,6 +34,19 @@ class Configure:
         if context.is_standalone:
             # Do nothing for standalone plugins.
             Logger.Debug("Standalone plugin, no config setup needed.")
+        elif context.platform == PlatformType.K2:
+            # On the K2 / K2 Pro, the stock Tina image runs Moonraker against
+            # /usr/share/moonraker/moonraker.conf (read-only rom location), but the
+            # standard printer_data tree lives at /mnt/UDISK/printer_data. Force the
+            # data paths to that tree regardless of where the moonraker.conf was found,
+            # so logs/asvc/etc resolve to writable persistent storage.
+            context.printer_data_folder = os.path.join(Paths.CrealityOsUserDataPath_K2, "printer_data")
+            context.printer_data_config_folder = os.path.join(context.printer_data_folder, "config")
+            # ensure_dir_exists uses os.mkdir (no parents), so create the parent first.
+            Util.ensure_dir_exists(context.printer_data_folder, context, True)
+            Util.ensure_dir_exists(context.printer_data_config_folder, context, True)
+            context.moonraker_asvc_file_path = os.path.join(context.printer_data_folder, "moonraker.asvc")
+            Logger.Debug("Printer data folder: "+context.printer_data_folder)
         elif context.platform == PlatformType.SONIC_PAD:
             # ONLY FOR THE SONIC PAD, we know the folder setup is different.
             # The user data folder will have /mnt/UDISK/printer_config<number> where the config files are and /mnt/UDISK/printer_logs<number> for logs.
@@ -73,6 +86,11 @@ class Configure:
             # For the k1, there's only ever one moonraker and we know the exact service naming convention.
             # Note we use 76 to ensure we start after moonraker.
             context.service_file_path = os.path.join(Paths.CrealityOsServiceFilePath, f"S{Configure.SERVICE_NUMBER}{Configure.SERVICE_NAME}_service")
+        elif context.platform == PlatformType.K2:
+            # The K2 / K2 Pro use procd-style init scripts under /etc/init.d with bare names
+            # (matching the stock klipper / moonraker entries). Use a simple file name and
+            # let procd's START priority handle ordering.
+            context.service_file_path = os.path.join(Paths.CrealityOsServiceFilePath, Configure.SERVICE_NAME)
         else:
             # For normal setups, use the convention that Klipper users
             # NOTE! For the Update class to work, the name must start with Configure.SERVICE_NAME

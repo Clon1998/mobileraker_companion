@@ -36,6 +36,8 @@ class Service:
             self._sonic_pad_install(context)
         elif context.platform == PlatformType.K1:
             self._k1_install(context)
+        elif context.platform == PlatformType.K2:
+            self._k2_install(context)
         else:
             raise NotImplementedError("Service install is not supported for this OS type yet.")
 
@@ -123,6 +125,50 @@ start_service() {{
         Util.run_shell_command(f"chmod +x {context.service_file_path}")
 
         Logger.Info("Starting the service...")
+        Service.restart_sonic_pad_service(context.service_file_path)
+
+        Logger.Info("Service setup and start complete!")
+
+
+    # Install for K2 / K2 Pro
+    def _k2_install(self, context:Context):
+        # The K2 runs procd under OpenWrt (Tina) just like the Sonic Pad, but using bare
+        # init script names (no _service suffix) under /etc/init.d. We match the stock
+        # moonraker/klipper init scripts in style and depend on `moonraker` so we start
+        # after it, with a higher START priority.
+        s = f'''\
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2011 OpenWrt.org
+
+START={Configure.SERVICE_NUMBER}
+STOP=1
+DEPEND=moonraker
+USE_PROCD=1
+OOM_ADJ=-17
+
+start_service() {{
+    procd_open_instance
+    procd_set_param env HOME=/root
+    procd_set_param env PYTHONPATH={context.repo_root}
+    procd_set_param oom_adj $OOM_ADJ
+    procd_set_param command {context.virtual_env}/bin/python3 {context.repo_root}/mobileraker.py -l {context.printer_data_logs_folder} -c {context.mobileraker_conf_path}
+    procd_close_instance
+}}
+'''
+        if context.skip_sudo_actions:
+            Logger.Warn("Skipping service file creation, registration, and starting due to skip sudo actions flag.")
+            return
+
+        Logger.Debug("Service config file contents to write: "+s)
+        Logger.Info("Creating service file "+context.service_file_path+"...")
+        with open(context.service_file_path, "w", encoding="utf-8") as file:
+            file.write(s)
+
+        Logger.Info("Making the service executable...")
+        Util.run_shell_command(f"chmod +x {context.service_file_path}")
+
+        Logger.Info("Starting the service...")
+        # The procd lifecycle commands match the Sonic Pad ones, so reuse that helper.
         Service.restart_sonic_pad_service(context.service_file_path)
 
         Logger.Info("Service setup and start complete!")

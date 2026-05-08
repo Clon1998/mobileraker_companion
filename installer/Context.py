@@ -12,15 +12,17 @@ from .Paths import Paths
 class PlatformType(Enum):
     """
     Enumeration representing different types of operating systems.
-    
+
     Attributes:
         DEBIAN (int): Represents the Debian operating system.
         SONIC_PAD (int): Represents the Sonic Pad operating system.
         K1 (int): Represents the K1 operating system (both K1 and K1 Max).
+        K2 (int): Represents the K2 / K2 Pro Tina-based OpenWrt operating system.
     """
     DEBIAN = 1
     SONIC_PAD = 2
     K1 = 3
+    K2 = 4
 
 class OperationMode(Enum):
     """
@@ -142,7 +144,7 @@ class Context:
         Returns:
             bool: True if the platform is Creality OS, False otherwise.
         """
-        return self.platform == PlatformType.SONIC_PAD or self.platform == PlatformType.K1
+        return self.platform in (PlatformType.SONIC_PAD, PlatformType.K1, PlatformType.K2)
 
     @property
     def has_moonraker_config_file_path(self) -> bool:
@@ -744,7 +746,9 @@ class Context:
                             return
                         raise AttributeError("We detected a K1 or K1 Max OS, but can't determine the data path.")
 
-        # For the Sonic Pad, we look for the openwrt os
+        # For the Sonic Pad and K2, both look at /etc/openwrt_release. The Sonic Pad
+        # carries "sonic" in its release identifiers; the K2 / K2 Pro Tina image
+        # carries a TINA_VERSION marker. Read the file once and match either.
         if os.path.exists("/etc/openwrt_release"):
             with open("/etc/openwrt_release", "r", encoding="utf-8") as osInfo:
                 lines = osInfo.readlines()
@@ -755,6 +759,12 @@ class Context:
                             self.platform = PlatformType.SONIC_PAD
                             return
                         raise AttributeError("We detected a Sonic Pad, but can't determine the data path.")
+                for l in lines:
+                    if "TINA_VERSION" in l:
+                        if os.path.exists(Paths.CrealityOsUserDataPath_K2):
+                            self.platform = PlatformType.K2
+                            return
+                        raise AttributeError("We detected a K2 / K2 Pro OS, but can't determine the data path.")
 
         # The OS is debian
         self.platform = PlatformType.DEBIAN
