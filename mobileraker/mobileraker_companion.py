@@ -42,7 +42,9 @@ class MobilerakerCompanion:
             printer_name: str,
             loop: AbstractEventLoop,
             companion_config: CompanionLocalConfig,
-            exclude_sensors: List[str] = []
+            exclude_sensors: List[str] = [],
+            pre_notification_gcode: Optional[str] = None,
+            post_notification_gcode: Optional[str] = None,
     ) -> None:
         super().__init__()
         self._jrpc: MoonrakerClient = jrpc
@@ -65,6 +67,8 @@ class MobilerakerCompanion:
         self._evaluation_running: bool = False
         self._error_debounce_seconds: float = 5.0
         self._notification_evaluator = NotificationEvaluator(companion_config, self.remote_config)
+        self._pre_notification_gcode: Optional[str] = pre_notification_gcode
+        self._post_notification_gcode: Optional[str] = post_notification_gcode
 
         self._logger.info('MobilerakerCompanion client created for %s, it will ignore the following sensors: %s',
                           printer_name, exclude_sensors)
@@ -334,6 +338,8 @@ class MobilerakerCompanion:
 
 
     async def _push_and_clear_faulty(self, dtos: List[DeviceRequestDto]):
+        if self._pre_notification_gcode:
+            await self._send_gcode(self._pre_notification_gcode)
         try:
             if dtos:
                 request = FcmRequestDto(dtos)
@@ -342,6 +348,20 @@ class MobilerakerCompanion:
         except requests.exceptions.RequestException as err:
             self._logger.error(
                 "Could not push notifications to mobileraker backend, %s: %s", type(err), err)
+        if self._post_notification_gcode:
+            await self._send_gcode(self._post_notification_gcode)
+
+    async def _send_gcode(self, gcode: str) -> None:
+        try:
+            _, k_err = await self._jrpc.send_and_receive_method(
+                "printer.gcode.script", {"script": gcode}
+            )
+            if k_err:
+                self._logger.warning("Gcode script returned error: %s", k_err)
+            else:
+                self._logger.info("Sent gcode script: %s", gcode)
+        except (ConnectionError, asyncio.TimeoutError) as err:
+            self._logger.warning("Could not send gcode script, %s: %s", type(err), err)
 
     async def _update_app_snapshot(self, cfg: DeviceNotificationEntry, printer_snap: PrinterSnapshot, had_progress: bool, had_progressbar: bool, had_progress_liveactivity: bool) -> None:
         try:

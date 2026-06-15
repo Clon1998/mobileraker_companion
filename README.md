@@ -215,6 +215,15 @@ moonraker_api_key: False
 # Moonraker API key if force_logins or trusted clients is active!
 # Default value: False
 # Optional
+pre_notification_gcode: M300 S440 P200
+# GCode script sent to the printer before a push notification is submitted.
+# Useful for triggering a beep or LED flash to indicate a notification is on its way.
+# Default value: <EMPTY> -> No gcode is sent
+# Optional
+post_notification_gcode: M300 S220 P200
+# GCode script sent to the printer after a push notification has been submitted.
+# Default value: <EMPTY> -> No gcode is sent
+# Optional
 ```
 
 ## Settings Managed in the App

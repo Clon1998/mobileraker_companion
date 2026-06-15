@@ -93,6 +93,8 @@ async def setup_printer_companion(
     snapshot_uri = printer_cfg["snapshot_uri"]
     snapshot_rotation = printer_cfg["snapshot_rotation"]
     exclude_sensors = printer_cfg["excluded_filament_sensors"]
+    pre_notification_gcode = printer_cfg.get("pre_notification_gcode")
+    post_notification_gcode = printer_cfg.get("post_notification_gcode")
     
     # Create the JRPC client
     jrpc = MoonrakerClient(
@@ -130,7 +132,9 @@ async def setup_printer_companion(
         printer_name=printer_name,
         loop=loop,
         companion_config=companion_config,
-        exclude_sensors=exclude_sensors
+        exclude_sensors=exclude_sensors,
+        pre_notification_gcode=pre_notification_gcode,
+        post_notification_gcode=post_notification_gcode,
     )
     
     logging.info("Starting MobilerakerCompanion for printer: %s", printer_name)

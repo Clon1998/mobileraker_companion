@@ -67,12 +67,17 @@ class CompanionLocalConfig:
             if rotation not in [0, 90, 180, 270]:
                 rotation = 0
 
+            pre_gcode = self.config.get(printer, "pre_notification_gcode", fallback=None)
+            post_gcode = self.config.get(printer, "post_notification_gcode", fallback=None)
+
             self.printers[printer[8:]] = {
                 "moonraker_uri": self.config.get(printer, "moonraker_uri", fallback="ws://127.0.0.1:7125/websocket"),
                 "moonraker_api_key": None if api_key == 'False' or not api_key else api_key,
                 "snapshot_uri": self.config.get(printer, "snapshot_uri", fallback="http://127.0.0.1/webcam/?action=snapshot"),
                 "snapshot_rotation": rotation,
-                "excluded_filament_sensors":  [sensor.strip() for sensor in self.config.get(printer, "ignore_filament_sensors", fallback="").split(",") if sensor.strip() != ""]
+                "excluded_filament_sensors":  [sensor.strip() for sensor in self.config.get(printer, "ignore_filament_sensors", fallback="").split(",") if sensor.strip() != ""],
+                "pre_notification_gcode": pre_gcode.strip() if pre_gcode and pre_gcode.strip() else None,
+                "post_notification_gcode": post_gcode.strip() if post_gcode and post_gcode.strip() else None,
             }
 
         if len(self.printers) <= 0:
@@ -81,7 +86,9 @@ class CompanionLocalConfig:
                 "moonraker_api_key": None,
                 "snapshot_uri": "http://127.0.0.1/webcam/?action=snapshot",
                 "snapshot_rotation": 0,
-                "excluded_filament_sensors": []
+                "excluded_filament_sensors": [],
+                "pre_notification_gcode": None,
+                "post_notification_gcode": None,
             }
         logging.info("Read %i printer config sections" % len(self.printers))
 
