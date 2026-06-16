@@ -45,7 +45,8 @@ class Uninstall:
         for service in found_services:
             service_file = os.path.join(Paths.service_file_folder(context), service)
             os.remove(service_file)
-            if context.platform == PlatformType.SONIC_PAD:
+            if context.platform == PlatformType.SONIC_PAD or context.platform == PlatformType.K2:
+                # Both the Sonic Pad and the K2 use procd init scripts under /etc/init.d.
                 Logger.Debug(f"Full service path: {service_file}")
                 Logger.Info(f"Stopping and deleting {service}...")
                 Util.run_shell_command(f"{service_file} stop", False)
@@ -70,6 +71,8 @@ class Uninstall:
         # TODO - We need to do a total cleanup of all files.
         if context.platform == PlatformType.K1:
             self._cleanup_k1()
+        elif context.platform == PlatformType.K2:
+            self._cleanup_k2()
         elif context.platform == PlatformType.SONIC_PAD:
             self._cleanup_sonic_pad()
         elif context.platform == PlatformType.DEBIAN:
@@ -124,6 +127,15 @@ class Uninstall:
         # Remove our system config file include in the moonraker file, if there is one.
         # self._cleanup_moonraker_cfg("/usr/data/printer_data/config/moonraker.conf")
         
+
+
+    # For the K2 / K2 Pro, the printer_data layout sits under /mnt/UDISK and matches
+    # the K1 cleanup, just rooted at the K2 user data path.
+    def _cleanup_k2(self):
+        # Delete any log files we have, there might be some rolling backups.
+        self._delete_files_in_dir(f"{Paths.CrealityOsUserDataPath_K2}/printer_data/logs", "mobileraker")
+        # Delete any config files.
+        self._delete_files_in_dir(f"{Paths.CrealityOsUserDataPath_K2}/printer_data/config", "mobileraker")
 
 
     def _cleanup_sonic_pad(self):

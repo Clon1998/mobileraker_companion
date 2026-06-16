@@ -63,6 +63,9 @@ class Discovery:
         elif context.platform == PlatformType.K1:
             # For the K1 and K1 max, we know exactly where the files are, so we don't need to do a lot of searching.
             discovery_result = self._discover_pairings_for_k1()
+        elif context.platform == PlatformType.K2:
+            # For the K2 / K2 Pro, the layout is fixed by the stock Tina image.
+            discovery_result = self._discover_pairings_for_k2()
         else:
             # To start, we will enumerate all moonraker service files we can find and their possible moonraker config parings.
             # For details about why we need these, read the readme.py file in this module.
@@ -234,6 +237,48 @@ class Discovery:
             Logger.Blank()
             Logger.Blank()
             raise Exception("Moonraker isn't installed on this K1 or K1 Max. Use the guide on this link to install it: https://oe.ink/s/k1 until step 4 `Install Moonraker, Fluidd, and Mainsail`")
+
+        return [ ServiceFileConfigPathPair(service_file, config_file_path) ]
+
+
+    # A special function for K2 / K2 Pro installs. The Tina image ships with Klipper
+    # and Moonraker preinstalled, so we know the service file and config locations.
+    # Note this must return the same result list as _FindAllServiceFilesAndPairings.
+    def _discover_pairings_for_k2(self):
+        # The stock K2 image registers /etc/init.d/moonraker (procd-style, no _service suffix).
+        service_file = None
+        for file_name in os.listdir(Paths.CrealityOsServiceFilePath):
+            full_path = os.path.join(Paths.CrealityOsServiceFilePath, file_name)
+            if os.path.isfile(full_path) and os.path.islink(full_path) is False:
+                # Only match the bare moonraker initscript, not e.g. moonraker-telegram-bot.
+                if file_name.lower() == "moonraker":
+                    Logger.Debug(f"Found service file: {full_path}")
+                    service_file = file_name
+                    break
+
+        # Prefer a user-managed moonraker.conf in the standard printer_data location, since
+        # mobileraker_companion will append [mobileraker] to it. Fall back to the system
+        # moonraker.conf shipped under /usr/share/moonraker if the user hasn't created one.
+        candidate_paths = [
+            os.path.join(Paths.CrealityOsUserDataPath_K2, "printer_data", "config", "moonraker.conf"),
+            "/usr/share/moonraker/moonraker.conf",
+        ]
+        config_file_path = None
+        for path in candidate_paths:
+            if os.path.isfile(path):
+                Logger.Debug(f"Found moonraker config file: {path}")
+                config_file_path = path
+                break
+
+        if config_file_path is None or service_file is None:
+            Logger.Blank()
+            Logger.Header("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            Logger.Error( "                                Moonraker Not Found!                                      ")
+            Logger.Warn(  "       The K2 / K2 Pro should ship with Moonraker, but the installer couldn't find it.    ")
+            Logger.Warn(  " Expected an init script at /etc/init.d/moonraker and a config under /mnt/UDISK or /usr/share. ")
+            Logger.Header("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            Logger.Blank()
+            raise Exception("Moonraker isn't installed on this K2 / K2 Pro - the installer couldn't locate the init script or config file.")
 
         return [ ServiceFileConfigPathPair(service_file, config_file_path) ]
 
@@ -433,6 +478,8 @@ class Discovery:
         Logger.Blank()
         Logger.Debug("Discovery - Config Files In Home Path")
         if context.is_creality_os:
+            # Note CrealityOsUserDataPath_K2 currently shares the same path as the Sonic
+            # Pad (/mnt/UDISK), so the first check covers both for printing purposes.
             if os.path.exists(Paths.CrealityOsUserDataPath_SonicPad):
                 self._print_path(Paths.CrealityOsUserDataPath_SonicPad, ".conf")
             if os.path.exists(Paths.CrealityOsUserDataPath_K1):

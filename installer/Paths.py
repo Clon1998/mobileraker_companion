@@ -17,6 +17,10 @@ class Paths:
     # They will be the standard Klipper setup, such as printer_data/config, printer_data/logs, etc.
     CrealityOsUserDataPath_K1 = "/usr/data"
 
+    # For the K2 / K2 Pro, persistent user storage lives at /mnt/UDISK with a standard
+    # Klipper printer_data layout underneath (printer_data/config, printer_data/logs, etc.).
+    CrealityOsUserDataPath_K2 = "/mnt/UDISK"
+
 
     @staticmethod
     def service_file_folder(context) -> str:

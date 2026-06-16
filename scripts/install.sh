@@ -36,6 +36,16 @@ if grep -Fqs "sonic" /etc/openwrt_release; then
     HOME="/usr/share"
 fi
 
+# The K2 / K2 Pro run a Tina-based OpenWrt (different from K1 Buildroot and Sonic Pad).
+# Tina images carry a TINA_VERSION marker in /etc/openwrt_release. Only match when the
+# K1 and Sonic Pad detections above did not already fire so those paths keep priority.
+IS_K2_OS=0
+if [ "$IS_K1_OS" -eq 0 ] && [ "$IS_SONIC_PAD_OS" -eq 0 ] && grep -Fqs "TINA_VERSION" /etc/openwrt_release; then
+    IS_K2_OS=1
+    # On the K2, persistent storage is /mnt/UDISK (/usr/share is read-only rom).
+    HOME="/mnt/UDISK"
+fi
+
 # Get the path where this script is executing
 SCRIPT_DIR=$(readlink -f "$(dirname "$0")")
 REPO_DIR=$(readlink -f "$SCRIPT_DIR/..")
@@ -104,12 +114,13 @@ log_blank()
 }
 
 #
-# It's important for consistency that the repo root is in set $HOME for the K1 and Sonic Pad
-# To enforce that, we will move the repo where it should be.
+# It's important for consistency that the repo root is set under $HOME for the
+# Creality K1, K2 and Sonic Pad images. To enforce that, we move (or copy) the
+# repo to where it should be before continuing.
 ensure_creality_os_right_repo_path()
 {
     # TODO - re-enable this for the  || [ "$IS_K1_OS" -eq 1 ] after the github script updates.
-    if [ "$IS_SONIC_PAD_OS" -eq 1 ] || [ "$IS_K1_OS" -eq 1 ]; then
+    if [ "$IS_SONIC_PAD_OS" -eq 1 ] || [ "$IS_K1_OS" -eq 1 ] || [ "$IS_K2_OS" -eq 1 ]; then
         # Due to the K1 shell, we have to use grep rather than any bash string contains syntax.
         if echo "$REPO_DIR" | grep "$HOME" - > /dev/null; then
             return
@@ -118,18 +129,29 @@ ensure_creality_os_right_repo_path()
             log_error "For the Creality devices the mobileraker_companion repo must be cloned into $HOME/mobileraker_companion"
             log_important "Moving the repo and running the install again..."
             cd "$HOME" || exit 1
-            # Send errors to null, if the folder already exists this will fail.
-            git clone https://github.com/Clon1998/mobileraker_companion.git mobileraker_companion 2>/dev/null || true
-            cd "$HOME/mobileraker_companion" || exit 1
-            # Ensure state
-            git reset --hard
-            # TODO: I dont want to checkout main. Just keep the current branch.
-            #git checkout main
-            git pull
-            # Log the current path after git pull        
+            # The K1 / Sonic Pad ship git (or have it via opkg), so we re-clone from upstream
+            # and pull the latest. The stock K2 Tina image has no git binary, so fall back
+            # to copying the in-place repo over with cp -a (preserves perms / symlinks).
+            if command -v git >/dev/null 2>&1; then
+                # Send errors to null, if the folder already exists this will fail.
+                git clone https://github.com/Clon1998/mobileraker_companion.git mobileraker_companion 2>/dev/null || true
+                cd "$HOME/mobileraker_companion" || exit 1
+                # Ensure state
+                git reset --hard
+                # TODO: I dont want to checkout main. Just keep the current branch.
+                #git checkout main
+                git pull
+            else
+                log_info "git not available, copying repo from $REPO_DIR to $HOME/mobileraker_companion..."
+                mkdir -p "$HOME/mobileraker_companion"
+                # Trailing /. so the contents (including dotfiles) land inside the destination.
+                cp -a "$REPO_DIR/." "$HOME/mobileraker_companion/" || { log_error "Failed to copy repo into $HOME/mobileraker_companion"; exit 1; }
+                cd "$HOME/mobileraker_companion" || exit 1
+            fi
+            # Log the current path after the move
             log_info "Current path $(pwd)"
             # Run the install, if it fails, still do the clean-up of this repo.
-            if [ "$IS_K1_OS" -eq 1 ]; then
+            if [ "$IS_K1_OS" -eq 1 ] || [ "$IS_K2_OS" -eq 1 ]; then
                 sh "$HOME/mobileraker_companion/scripts/install.sh" "$@" || true
             else
                 "$HOME/mobileraker_companion/scripts/install.sh" "$@" || true
@@ -173,7 +195,8 @@ ensure_py_venv()
             python3 /usr/lib/python3.8/site-packages/virtualenv.py -p /usr/bin/python3 --system-site-packages "${ENV_DIR}"
         fi
     else
-        # Everything else can use this more modern style command.
+        # Everything else (K2 included) can use this more modern style command.
+        # The K2 ships with /usr/bin/python3 (3.9) and /usr/bin/virtualenv preinstalled.
         virtualenv -p /usr/bin/python3 --system-site-packages "${ENV_DIR}"
     fi
 }
@@ -194,6 +217,10 @@ install_or_update_system_dependencies()
             /opt/bin/opkg update || true
             /opt/bin/opkg install ${CREALITY_DEP_LIST}
         fi
+        pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir virtualenv
+    elif [ "$IS_K2_OS" -eq 1 ]; then
+        # The K2 / K2 Pro Tina image ships with python3, pip3 and virtualenv preinstalled
+        # under /usr/bin and has no opkg, so we only need to make sure virtualenv is current.
         pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir virtualenv
     elif [ "$IS_SONIC_PAD_OS" -eq 1 ]; then
         # The sonic pad always has opkg installed, so we can make sure these packages are installed.
@@ -243,7 +270,7 @@ install_or_update_python_env()
 
     # Update pip if needed - we added a note because this takes a while on the sonic pad.
     log_info "Updating PIP if needed... (this can take a few seconds or so)"
-    if [ "$IS_K1_OS" -eq 1 ]; then
+    if [ "$IS_K1_OS" -eq 1 ] || [ "$IS_K2_OS" -eq 1 ]; then
         "${ENV_DIR}"/bin/python -m pip install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org --no-cache-dir --upgrade pip
     else
         "${ENV_DIR}"/bin/python -m pip install --upgrade pip
@@ -254,7 +281,7 @@ install_or_update_python_env()
 
     # Finally, ensure our plugin requirements are installed and updated.
     log_info "Installing or updating required python libs..."
-    if [ "$IS_K1_OS" -eq 1 ]; then
+    if [ "$IS_K1_OS" -eq 1 ] || [ "$IS_K2_OS" -eq 1 ]; then
         TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host=files.pythonhosted.org -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
     else
         TMPDIR="${CACHE_DIR}" "${ENV_DIR}"/bin/pip3 install -q -r "${SCRIPT_DIR}"/mobileraker-requirements.txt
@@ -310,6 +337,9 @@ fi
 if [ "$IS_K1_OS" -eq 1 ]; then
     echo "Running in K1 and K1 Max OS mode"
 fi
+if [ "$IS_K2_OS" -eq 1 ]; then
+    echo "Running in K2 / K2 Pro OS mode"
+fi
 
 # Before anything, make sure this repo is cloned into the correct path on Creality OS devices.
 # If this is Creality OS and the path is wrong, it will re-clone the repo, run the install again, and exit.
@@ -348,7 +378,7 @@ cd "${REPO_DIR}" > /dev/null || exit 1
 
 # Disable the timestamp on the next line, since this is part of a larger function.
 # shellcheck disable=SC2154
-if [ "$IS_SONIC_PAD_OS" -eq 1 ] || [ "$IS_K1_OS" -eq 1 ]; then
+if [ "$IS_SONIC_PAD_OS" -eq 1 ] || [ "$IS_K1_OS" -eq 1 ] || [ "$IS_K2_OS" -eq 1 ]; then
     # Creality OS only has a root user and we can't use sudo.
     "${ENV_DIR}/bin/python3" -B -m installer "$PY_LAUNCH_JSON"
 else
