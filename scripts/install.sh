@@ -36,6 +36,13 @@ if grep -Fqs "sonic" /etc/openwrt_release; then
     HOME="/usr/share"
 fi
 
+# Next, we try to detect if this OS is an openSUSE.
+# openSUSE is a Linux distribution like Debian but uses a different package manager.
+IS_SUSE_OS=0
+if grep -Eqs "ID_LIKE=.*\<suse\>" /etc/os-release; then
+    IS_SUSE_OS=1
+fi
+
 # Get the path where this script is executing
 SCRIPT_DIR=$(readlink -f "$(dirname "$0")")
 REPO_DIR=$(readlink -f "$SCRIPT_DIR/..")
@@ -53,13 +60,17 @@ ENV_DIR="${HOME}/mobileraker-env"
 # The python requirements are for the installer and plugin
 # The virtualenv is for our virtual package env we create
 # The curl requirement is for some things in this bootstrap script.
-PKGLIST="python3 python3-pip virtualenv curl"
+if [ "$IS_SUSE_OS" -eq 1 ]; then
+    PKGLIST="python3 python3-pip python3-virtualenv patterns-devel-python-devel_python3 curl"
+else
+    PKGLIST="python3 python3-pip virtualenv curl"
+fi
+
 # For the Creality OS, we only need to install these.
 # We don't override the default name, since that's used by the Moonraker installer
 # Note that we DON'T want to use the same name as above (not even in this comment) because some parsers might find it.
 SONIC_PAD_DEP_LIST="python3 python3-pip"
 CREALITY_DEP_LIST="python3 python3-pillow python3-pip"
-
 
 #
 # Console Write Helpers
@@ -200,6 +211,23 @@ install_or_update_system_dependencies()
         opkg update || true
         opkg install ${SONIC_PAD_DEP_LIST}
         pip3 install virtualenv
+    elif [ "$IS_SUSE_OS" -eq 1 ]; then
+        # These we require to be installed in the OS.
+        # Note we need to do this before we create our virtual environment
+        log_info "Installing required system packages. This can take a few minutes..."
+        sudo zypper ref -s 1>/dev/null 2>/dev/null || true
+        sudo zypper -n install ${PKGLIST}
+
+        # The PY lib Pillow depends on some system packages that change names depending on the OS.
+        # The easiest way to do this was just to try to install them and ignore errors.
+        # Most systems already have the packages installed, so this only fixes edge cases.
+        # Notes on Pillow deps: https://pillow.readthedocs.io/en/latest/installation.html
+        log_info "Ensuring zlib is install for Pillow, it's ok if this package install fails."
+        sudo zypper -n install \
+            zlib-ng-devel \
+            zlib-ng-compat-devel \
+            libjpeg-turbo \
+            libjpeg8-devel 2>/dev/null || true
     else
         # It seems a lot of printer control systems don't have the date and time set correctly, and then the fail
         # getting packages and other downstream things. We will will use our HTTP API to set the current UTC time.
@@ -214,7 +242,6 @@ install_or_update_system_dependencies()
 
         # These we require to be installed in the OS.
         # Note we need to do this before we create our virtual environment
-    
         log_info "Installing required system packages. This can take a few minutes..."
         sudo apt update 1>/dev/null 2>/dev/null || true
         sudo apt install --yes ${PKGLIST}
